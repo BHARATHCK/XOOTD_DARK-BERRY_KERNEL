@@ -82,6 +82,18 @@
  */
 #define MDP_TIME_PERIOD_CALC_FPS_US	1000000
 
+int backlight_min = 0;
+int backlight_max = 255;
+
+module_param(backlight_min, int, 0755);
+module_param(backlight_max, int, 0755);
+
+#define MDSS_BRIGHT_TO_BL_DIM(out, v) do {\
+			out = (12*v*v+1393*v+3060)/4465;\
+			} while (0)
+bool backlight_dimmer = false;
+module_param(backlight_dimmer, bool, 0755);
+
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
 
@@ -228,7 +240,8 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 		mfd->update.ref_count++;
 		mutex_unlock(&mfd->update.lock);
 		ret = wait_for_completion_interruptible_timeout(
-						&mfd->update.comp, 4 * HZ);
+						&mfd->update.comp,
+						msecs_to_jiffies(4000));
 		mutex_lock(&mfd->update.lock);
 		mfd->update.ref_count--;
 		mutex_unlock(&mfd->update.lock);
@@ -251,7 +264,8 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 		mfd->no_update.ref_count++;
 		mutex_unlock(&mfd->no_update.lock);
 		ret = wait_for_completion_interruptible_timeout(
-						&mfd->no_update.comp, 4 * HZ);
+						&mfd->no_update.comp,
+						msecs_to_jiffies(4000));
 		mutex_lock(&mfd->no_update.lock);
 		mfd->no_update.ref_count--;
 		mutex_unlock(&mfd->no_update.lock);
@@ -260,7 +274,8 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 		if (mdss_fb_is_power_on(mfd)) {
 			reinit_completion(&mfd->power_off_comp);
 			ret = wait_for_completion_interruptible_timeout(
-						&mfd->power_off_comp, 1 * HZ);
+						&mfd->power_off_comp,
+						msecs_to_jiffies(1000));
 		}
 	}
 
@@ -287,10 +302,23 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
-	/* This maps android backlight level 0 to 255 into
-	   driver backlight level 0 to bl_max with rounding */
-	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
-				mfd->panel_info->brightness_max);
+	if (backlight_dimmer) {
+		MDSS_BRIGHT_TO_BL_DIM(bl_lvl, value);
+	} else {
+		/* This maps android backlight level 0 to 255 into
+		   driver backlight level 0 to bl_max with rounding */
+		MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
+					mfd->panel_info->brightness_max);
+	}
+
+	// Boeffla: apply min/max limits for LCD backlight (0 is exception for display off)
+	if (value != 0) {
+		if (value < backlight_min)
+			value = backlight_min;
+
+		if (value > backlight_max)
+			value = backlight_max;
+	}
 
 	if (!bl_lvl && value)
 		bl_lvl = 1;
@@ -3781,7 +3809,7 @@ static int __mdss_fb_display_thread(void *data)
 				mfd->index);
 
 	while (1) {
-		wait_event(mfd->commit_wait_q,
+		wait_event_interruptible(mfd->commit_wait_q,
 				(atomic_read(&mfd->commits_pending) ||
 				 kthread_should_stop()));
 
@@ -4673,7 +4701,10 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 	if (!mfd)
 		return -EINVAL;
 
+
 	mdp5_data = mfd_to_mdp5_data(mfd);
+
+
 
 	if (mfd->panel_info->panel_dead) {
 		pr_debug("early commit return\n");
@@ -4687,8 +4718,11 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 			mfd->mdp.signal_retire_fence && mdp5_data)
 			mfd->mdp.signal_retire_fence(mfd,
 						mdp5_data->retire_cnt);
-		return 0;
+/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 start */
+		//return 0;
+/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 end */
 	}
+
 
 	output_layer_user = commit.commit_v1.output_layer;
 	if (output_layer_user) {

@@ -66,3 +66,13 @@ obj-$(CONFIG_UID_SYS_STATS) += uid_sys_stats.o
 obj-y				+= qcom/
 obj-$(CONFIG_QPNP_MISC) 	+= qpnp-misc.o
 obj-$(CONFIG_MEMORY_STATE_TIME) += memory_state_time.o
+obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o
+
+# Huaqin add for ZQL1650-86 by liunianliang at 2018/02/09 start
+obj-y                           += huaqin/
+# Huaqin add for ZQL1650-86 by liunianliang at 2018/02/09 end
+
+# TODO: remove me b/62058353
+subdir-ccflags-y += \
+	-Wno-ignored-attributes \
+	-Wno-header-guard

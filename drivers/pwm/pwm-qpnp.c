@@ -28,6 +28,7 @@
 #include <linux/of_address.h>
 #include <linux/radix-tree.h>
 #include <linux/qpnp/pwm.h>
+#include <linux/delay.h>
 
 #define QPNP_LPG_DRIVER_NAME	"qcom,qpnp-pwm"
 #define QPNP_LPG_CHANNEL_BASE	"qpnp-lpg-channel-base"
@@ -1119,6 +1120,9 @@ static int qpnp_lpg_configure_lut_state(struct qpnp_pwm_chip *chip,
 	addr = SPMI_LPG_REG_ADDR(lpg_config->base_addr,
 				QPNP_ENABLE_CONTROL);
 
+	// Add 1mS delay to fix qcom known HW issue
+	mdelay(1);
+
 	if (chip->in_test_mode) {
 		test_enable = (state == QPNP_LUT_ENABLE) ? 1 : 0;
 		rc = qpnp_dtest_config(chip, test_enable);
@@ -1475,7 +1479,7 @@ static void qpnp_pwm_disable(struct pwm_chip *pwm_chip,
  */
 int pwm_change_mode(struct pwm_device *pwm, enum pm_pwm_mode mode)
 {
-	int rc;
+	int rc = 0;
 	unsigned long flags;
 	struct qpnp_pwm_chip *chip;
 
@@ -1499,14 +1503,16 @@ int pwm_change_mode(struct pwm_device *pwm, enum pm_pwm_mode mode)
 			goto unlock;
 		}
 		chip->pwm_mode = mode;
-		if (chip->enabled) {
-			rc = _pwm_enable(chip);
-			if (rc) {
-				pr_err("Failed to enable PWM, rc=%d\n", rc);
-				goto unlock;
-			}
+	}
+	/* Huaqin modify for fixing led cannot work by guojianghong at 2018/2/5 start*/
+	if (chip->enabled) {
+		rc = _pwm_enable(chip);
+		if (rc) {
+			pr_err("Failed to enable PWM, rc=%d\n", rc);
+			goto unlock;
 		}
 	}
+	/* Huaqin modify for fixing led cannot work by guojianghong at 2018/2/5 start*/
 unlock:
 	spin_unlock_irqrestore(&chip->lpg_lock, flags);
 
