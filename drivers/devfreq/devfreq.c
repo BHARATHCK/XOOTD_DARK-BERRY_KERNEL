@@ -41,6 +41,7 @@ static LIST_HEAD(devfreq_governor_list);
 /* The list of all device-devfreq */
 static LIST_HEAD(devfreq_list);
 static DEFINE_MUTEX(devfreq_list_lock);
+#define GPU_DEFAULT_BOOT_MAX_FREQ 266000000
 
 /**
  * find_device_devfreq() - find devfreq struct using device pointer
@@ -89,6 +90,7 @@ static void devfreq_set_freq_limits(struct devfreq *devfreq)
 
 	devfreq->min_freq = min;
 	devfreq->max_freq = max;
+	devfreq->max_freq = GPU_DEFAULT_BOOT_MAX_FREQ
 }
 
 /**
