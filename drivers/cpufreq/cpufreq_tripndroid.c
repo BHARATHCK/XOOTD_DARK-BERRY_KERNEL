@@ -99,8 +99,10 @@ static unsigned int get_freq_table_size(struct cpufreq_frequency_table *freq_tab
 
 	unsigned int size = 0;
 
-	while (freq_table[++size].frequency != CPUFREQ_TABLE_END);
+	while (freq_table[++size].frequency != CPUFREQ_TABLE_END)
+	{		
 		return size;
+	}
 }
 
 static void cpufreq_tripndroid_timer(unsigned long data)
