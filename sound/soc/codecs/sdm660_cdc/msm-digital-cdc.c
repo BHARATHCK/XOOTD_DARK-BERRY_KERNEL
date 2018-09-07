@@ -86,6 +86,8 @@ static int msm_digcdc_clock_control(bool flag)
 	if (flag) {
 		mutex_lock(&pdata->cdc_int_mclk0_mutex);
 		if (atomic_read(&pdata->int_mclk0_enabled) == false) {
+			if (msm_dig_cdc->regmap->cache_only == true)
+				return ret;
 			if (pdata->native_clk_set)
 				pdata->digital_cdc_core_clk.clk_freq_in_hz =
 							NATIVE_MCLK_RATE;
@@ -103,8 +105,7 @@ static int msm_digcdc_clock_control(bool flag)
 				 * Avoid access to lpass register
 				 * as clock enable failed during SSR.
 				 */
-				if (ret == -ENODEV)
-					msm_dig_cdc->regmap->cache_only = true;
+				msm_dig_cdc->regmap->cache_only = true;
 				return ret;
 			}
 			pr_debug("enabled digital codec core clk\n");
@@ -1264,11 +1265,67 @@ static void sdm660_tx_mute_update_callback(struct work_struct *work)
 	}
 }
 
+#ifdef CONFIG_SOUND_CONTROL
+struct snd_soc_codec *sound_control_codec_ptr;
+
+static ssize_t headphone_gain_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d %d\n",
+		snd_soc_read(sound_control_codec_ptr, MSM89XX_CDC_CORE_RX1_VOL_CTL_B2_CTL),
+		snd_soc_read(sound_control_codec_ptr, MSM89XX_CDC_CORE_RX2_VOL_CTL_B2_CTL)
+	);
+}
+
+static ssize_t headphone_gain_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+
+	int input_l, input_r;
+
+	sscanf(buf, "%d %d", &input_l, &input_r);
+
+	if (input_l < -40 || input_l > 20)
+		input_l = 0;
+
+	if (input_r < -40 || input_r > 20)
+		input_r = 0;
+
+	snd_soc_write(sound_control_codec_ptr, MSM89XX_CDC_CORE_RX1_VOL_CTL_B2_CTL, input_l);
+	snd_soc_write(sound_control_codec_ptr, MSM89XX_CDC_CORE_RX2_VOL_CTL_B2_CTL, input_r);
+
+	return count;
+}
+
+static struct kobj_attribute headphone_gain_attribute =
+	__ATTR(headphone_gain, 0664,
+		headphone_gain_show,
+		headphone_gain_store);
+
+static struct attribute *sound_control_attrs[] = {
+		&headphone_gain_attribute.attr,
+		NULL,
+};
+
+static struct attribute_group sound_control_attr_group = {
+		.attrs = sound_control_attrs,
+};
+
+static struct kobject *sound_control_kobj;
+#endif
+
 static int msm_dig_cdc_soc_probe(struct snd_soc_codec *codec)
 {
 	struct msm_dig_priv *msm_dig_cdc = dev_get_drvdata(codec->dev);
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int i, ret;
+
+/*zhiguang.su@MultiMedia.AudioDrv, 2017-03-27, add for debug*/
+pr_err("%s enter\n", __func__);
+
+#ifdef CONFIG_SOUND_CONTROL
+	sound_control_codec_ptr = codec;
+#endif
 
 	msm_dig_cdc->codec = codec;
 
@@ -1401,6 +1458,9 @@ static const struct snd_soc_dapm_route audio_dig_map[] = {
 	{"RX2 MIX1 INP2", "RX3", "I2S RX3"},
 	{"RX2 MIX1 INP2", "IIR1", "IIR1"},
 	{"RX2 MIX1 INP2", "IIR2", "IIR2"},
+	{"RX2 MIX1 INP3", "RX1", "I2S RX1"},
+	{"RX2 MIX1 INP3", "RX2", "I2S RX2"},
+	{"RX2 MIX1 INP3", "RX3", "I2S RX3"},
 
 	{"RX3 MIX1 INP1", "RX1", "I2S RX1"},
 	{"RX3 MIX1 INP1", "RX2", "I2S RX2"},
@@ -1412,6 +1472,9 @@ static const struct snd_soc_dapm_route audio_dig_map[] = {
 	{"RX3 MIX1 INP2", "RX3", "I2S RX3"},
 	{"RX3 MIX1 INP2", "IIR1", "IIR1"},
 	{"RX3 MIX1 INP2", "IIR2", "IIR2"},
+	{"RX3 MIX1 INP3", "RX1", "I2S RX1"},
+	{"RX3 MIX1 INP3", "RX2", "I2S RX2"},
+	{"RX3 MIX1 INP3", "RX3", "I2S RX3"},
 
 	{"RX1 MIX2 INP1", "IIR1", "IIR1"},
 	{"RX2 MIX2 INP1", "IIR1", "IIR1"},
@@ -2109,6 +2172,18 @@ static int msm_dig_cdc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+#ifdef CONFIG_SOUND_CONTROL
+	sound_control_kobj = kobject_create_and_add("sound_control", kernel_kobj);
+	if (sound_control_kobj == NULL) {
+		pr_warn("%s kobject create failed!\n", __func__);
+        }
+
+	ret = sysfs_create_group(sound_control_kobj, &sound_control_attr_group);
+        if (ret) {
+		pr_warn("%s sysfs file create failed!\n", __func__);
+	}
+#endif
+
 	msm_dig_cdc->dig_base = ioremap(dig_cdc_addr,
 					MSM89XX_CDC_CORE_MAX_REGISTER);
 	if (msm_dig_cdc->dig_base == NULL) {
@@ -2148,6 +2223,10 @@ static int msm_dig_suspend(struct device *dev)
 
 	if (!registered_digcodec || !msm_dig_cdc) {
 		pr_debug("%s:digcodec not initialized, return\n", __func__);
+		return 0;
+	}
+	if (!registered_digcodec->component.card) {
+		pr_debug("%s:component not initialized, return\n", __func__);
 		return 0;
 	}
 	pdata = snd_soc_card_get_drvdata(registered_digcodec->component.card);
