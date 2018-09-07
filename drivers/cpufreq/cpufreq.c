@@ -33,6 +33,9 @@
 #include <linux/sched.h>
 #endif
 #include <trace/events/power.h>
+#include <linux/state_notifier.h>
+#include <linux/powersuspend.h>
+
 
 static LIST_HEAD(cpufreq_policy_list);
 
@@ -2258,7 +2261,11 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 
 	scale_freq_capacity(new_policy, NULL);
 
-	policy->min = new_policy->min;
+        if(power_suspended)
+        {
+		policy->min = 300000;
+        }
+        else policy->min = new_policy->min;
 	policy->max = new_policy->max;
 	trace_cpu_frequency_limits(policy->max, policy->min, policy->cpu);
 
