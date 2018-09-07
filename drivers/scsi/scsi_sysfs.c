@@ -288,7 +288,7 @@ show_shost_eh_deadline(struct device *dev,
 	struct Scsi_Host *shost = class_to_shost(dev);
 
 	if (shost->eh_deadline == -1)
-		return snprintf(buf, strlen("off") + 2, "off\n");
+		return snprintf(buf, DSTRLEN("off") + 2, "off\n");
 	return sprintf(buf, "%u\n", shost->eh_deadline / HZ);
 }
 
@@ -305,7 +305,7 @@ store_shost_eh_deadline(struct device *dev, struct device_attribute *attr,
 	     !shost->hostt->eh_host_reset_handler))
 		return ret;
 
-	if (!strncmp(buf, "off", strlen("off")))
+	if (!strncmp(buf, "off", DSTRLEN("off")))
 		deadline = -1;
 	else {
 		ret = kstrtoul(buf, 10, &deadline);
@@ -678,8 +678,24 @@ static ssize_t
 sdev_store_delete(struct device *dev, struct device_attribute *attr,
 		  const char *buf, size_t count)
 {
-	if (device_remove_file_self(dev, attr))
-		scsi_remove_device(to_scsi_device(dev));
+	struct kernfs_node *kn;
+
+	kn = sysfs_break_active_protection(&dev->kobj, &attr->attr);
+	WARN_ON_ONCE(!kn);
+	/*
+	 * Concurrent writes into the "delete" sysfs attribute may trigger
+	 * concurrent calls to device_remove_file() and scsi_remove_device().
+	 * device_remove_file() handles concurrent removal calls by
+	 * serializing these and by ignoring the second and later removal
+	 * attempts.  Concurrent calls of scsi_remove_device() are
+	 * serialized. The second and later calls of scsi_remove_device() are
+	 * ignored because the first call of that function changes the device
+	 * state into SDEV_DEL.
+	 */
+	device_remove_file(dev, attr);
+	scsi_remove_device(to_scsi_device(dev));
+	if (kn)
+		sysfs_unbreak_active_protection(kn);
 	return count;
 };
 static DEVICE_ATTR(delete, S_IWUSR, NULL, sdev_store_delete);

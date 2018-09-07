@@ -1591,7 +1591,7 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 		goto err_chipvertrim_failed;
 	}
 
- /* Huaqin modify for ZQL1650-1357 by diganyun at 2018/05/22  start */	
+ /* Huaqin modify for ZQL1650-1357 by diganyun at 2018/05/22  start */
 	//---request and config GPIOs---
 	ret = nvt_gpio_config(ts);
 	if (ret) {

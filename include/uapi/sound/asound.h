@@ -23,7 +23,6 @@
 #ifndef _UAPI__SOUND_ASOUND_H
 #define _UAPI__SOUND_ASOUND_H
 
-#include <linux/time.h>
 #include <linux/types.h>
 
 #ifndef __KERNEL__

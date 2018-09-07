@@ -3961,9 +3961,9 @@ static int glink_core_init_xprt_qos_cfg(struct glink_core_xprt_ctx *xprt_ptr,
 	xprt_ptr->token_count = cfg->token_count ? cfg->token_count :
 					GLINK_QOS_DEF_NUM_TOKENS;
 
-	xprt_ptr->prio_bin = kzalloc(xprt_ptr->num_priority *
-				sizeof(struct glink_qos_priority_bin),
-				GFP_KERNEL);
+	xprt_ptr->prio_bin = kcalloc(xprt_ptr->num_priority,
+				     sizeof(struct glink_qos_priority_bin),
+				     GFP_KERNEL);
 	if (xprt_ptr->num_priority > 1)
 		sched_setscheduler(xprt_ptr->tx_task, SCHED_FIFO, &param);
 	if (!xprt_ptr->prio_bin) {
@@ -4326,12 +4326,6 @@ static void glink_core_channel_cleanup(struct glink_core_xprt_ctx *xprt_ptr)
 	rwref_read_get(&xprt_ptr->xprt_state_lhb0);
 	ctx = get_first_ch_ctx(xprt_ptr);
 	while (ctx) {
-		spin_lock_irqsave(&xprt_ptr->tx_ready_lock_lhb3, flags);
-		spin_lock(&ctx->tx_lists_lock_lhc3);
-		if (!list_empty(&ctx->tx_active))
-			glink_qos_done_ch_tx(ctx);
-		spin_unlock(&ctx->tx_lists_lock_lhc3);
-		spin_unlock_irqrestore(&xprt_ptr->tx_ready_lock_lhb3, flags);
 		rwref_write_get_atomic(&ctx->ch_state_lhb2, true);
 		if (ctx->local_open_state == GLINK_CHANNEL_OPENED ||
 			ctx->local_open_state == GLINK_CHANNEL_OPENING) {

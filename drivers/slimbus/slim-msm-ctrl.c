@@ -92,8 +92,8 @@ enum mgr_intr {
 
 enum frm_cfg {
 	FRM_ACTIVE	= 1,
-	CLK_GEAR	= 11,
-	ROOT_FREQ	= 22,
+	CLK_GEAR	= 7,
+	ROOT_FREQ	= 11,
 	REF_CLK_GEAR	= 15,
 	INTR_WAKE	= 19,
 };
@@ -207,7 +207,7 @@ static irqreturn_t msm_slim_interrupt(int irq, void *d)
 		 * signalling completion/exiting ISR
 		 */
 		mb();
-		msm_slim_manage_tx_msgq(dev, false, NULL, 0);
+		msm_slim_manage_tx_msgq(dev, false, NULL);
 	}
 	if (stat & MGR_INT_RX_MSG_RCVD) {
 		u32 rx_buf[10];
@@ -818,9 +818,9 @@ static void slim_sat_rxprocess(struct work_struct *work)
 				continue;
 			}
 			/* Satellite-channels */
-			sat->satch = kzalloc(MSM_MAX_SATCH *
-					sizeof(struct msm_sat_chan),
-					GFP_KERNEL);
+			sat->satch = kcalloc(MSM_MAX_SATCH,
+					     sizeof(struct msm_sat_chan),
+					     GFP_KERNEL);
 send_capability:
 			txn.mc = SLIM_USR_MC_MASTER_CAPABILITY;
 			txn.mt = SLIM_MSG_MT_SRC_REFERRED_USER;
@@ -1178,7 +1178,7 @@ static int msm_slim_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err_get_res_failed;
 	}
-	dev->wr_comp = kzalloc(sizeof(struct completion *) * MSM_TX_BUFS,
+	dev->wr_comp = kcalloc(MSM_TX_BUFS, sizeof(struct completion *),
 				GFP_KERNEL);
 	if (!dev->wr_comp)
 		return -ENOMEM;

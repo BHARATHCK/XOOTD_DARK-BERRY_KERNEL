@@ -59,14 +59,13 @@ static type **allocate_2d_array_##type(int idx)\
 	type **ptr = NULL;\
 	if (!idx) \
 		return ERR_PTR(-EINVAL);\
-	ptr = kzalloc(sizeof(*ptr) * TEMP_DATA_POINTS, \
+	ptr = kcalloc(TEMP_DATA_POINTS, sizeof(*ptr), \
 				GFP_KERNEL);\
 	if (!ptr) { \
 		return ERR_PTR(-ENOMEM); \
 	} \
 	for (i = 0; i < TEMP_DATA_POINTS; i++) { \
-		ptr[i] = kzalloc(sizeof(*ptr[i]) * \
-					idx, GFP_KERNEL);\
+		ptr[i] = kcalloc(idx, sizeof(*ptr[i]), GFP_KERNEL);\
 		if (!ptr[i]) {\
 			goto done;\
 		} \
@@ -114,10 +113,6 @@ DEFINE_PER_CPU(struct cpu_pstate_pwr *, ptable);
 static struct cpu_pwr_stats cpu_stats[NR_CPUS];
 ALLOCATE_2D_ARRAY(uint32_t);
 
-/*
- * Userspace checks for the presence of poll_ms and disabled, so keep them
- * even when ENABLE_TSENS_SAMPLING isn't used.
- */
 static int poll_ms;
 module_param_named(polling_interval, poll_ms, int,
 		S_IRUGO | S_IWUSR | S_IWGRP);
@@ -1116,7 +1111,6 @@ static int msm_core_dev_probe(struct platform_device *pdev)
 	for_each_possible_cpu(cpu)
 		set_threshold(&activity[cpu]);
 
-	INIT_DEFERRABLE_WORK(&sampling_work, samplequeue_handle);
 	schedule_delayed_work(&sampling_work, msecs_to_jiffies(0));
 	pm_notifier(system_suspend_handler, 0);
 #endif

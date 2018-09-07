@@ -142,7 +142,7 @@
 #define	FLASH_LED_IRES_BASE			3
 #define	FLASH_LED_IRES_DIVISOR			2500
 #define	FLASH_LED_IRES_MIN_UA			5000
-#define	FLASH_LED_IRES_DEFAULT_UA		13000
+#define	FLASH_LED_IRES_DEFAULT_UA		12500
 #define	FLASH_LED_IRES_DEFAULT_VAL		0x00
 #define	FLASH_LED_HDRM_VOL_SHIFT		4
 #define	FLASH_LED_HDRM_VOL_DEFAULT_MV		0x80
@@ -1292,12 +1292,12 @@ static void qpnp_flash_led_brightness_set(struct led_classdev *led_cdev,
 	 * strncmp() must be used here since a prefix comparison is required
 	 * in order to support names like led:switch_0 and led:flash_1.
 	 */
-	if (!strncmp(led_cdev->name, "led:switch", strlen("led:switch"))) {
+	if (!strncmp(led_cdev->name, "led:switch", DSTRLEN("led:switch"))) {
 		snode = container_of(led_cdev, struct flash_switch_data, cdev);
 		led = dev_get_drvdata(&snode->pdev->dev);
-	} else if (!strncmp(led_cdev->name, "led:flash", strlen("led:flash")) ||
+	} else if (!strncmp(led_cdev->name, "led:flash", DSTRLEN("led:flash")) ||
 			!strncmp(led_cdev->name, "led:torch",
-						strlen("led:torch"))) {
+						DSTRLEN("led:torch"))) {
 		fnode = container_of(led_cdev, struct flash_node_data, cdev);
 		led = dev_get_drvdata(&fnode->pdev->dev);
 	}

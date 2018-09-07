@@ -41,7 +41,6 @@ static LIST_HEAD(devfreq_governor_list);
 /* The list of all device-devfreq */
 static LIST_HEAD(devfreq_list);
 static DEFINE_MUTEX(devfreq_list_lock);
-#define GPU_DEFAULT_BOOT_MAX_FREQ 266000000;
 
 /**
  * find_device_devfreq() - find devfreq struct using device pointer
@@ -90,7 +89,6 @@ static void devfreq_set_freq_limits(struct devfreq *devfreq)
 
 	devfreq->min_freq = min;
 	devfreq->max_freq = max;
-	devfreq->max_freq = GPU_DEFAULT_BOOT_MAX_FREQ
 }
 
 /**
@@ -121,6 +119,10 @@ static int devfreq_update_status(struct devfreq *devfreq, unsigned long freq)
 	unsigned long cur_time;
 
 	cur_time = jiffies;
+
+	/* Immediately exit if previous_freq is not initialized yet. */
+	if (!devfreq->previous_freq)
+		goto out;
 
 	prev_lev = devfreq_get_freq_level(devfreq, devfreq->previous_freq);
 	if (prev_lev < 0) {
@@ -360,7 +362,6 @@ void devfreq_interval_update(struct devfreq *devfreq, unsigned int *delay)
 	unsigned int new_delay = *delay;
 
 	mutex_lock(&devfreq->lock);
-	devfreq->profile->polling_ms = new_delay;
 
 	if (devfreq->stop_polling)
 		goto out;
@@ -533,17 +534,19 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	if (devfreq->governor)
 		err = devfreq->governor->event_handler(devfreq,
 					DEVFREQ_GOV_START, NULL);
-	mutex_unlock(&devfreq_list_lock);
 	if (err) {
 		dev_err(dev, "%s: Unable to start governor for the device\n",
 			__func__);
 		goto err_init;
 	}
+	mutex_unlock(&devfreq_list_lock);
 
 	return devfreq;
 
 err_init:
 	list_del(&devfreq->node);
+	mutex_unlock(&devfreq_list_lock);
+
 	device_unregister(&devfreq->dev);
 	kfree(devfreq);
 err_out:
@@ -840,13 +843,9 @@ static ssize_t governor_store(struct device *dev, struct device_attribute *attr,
 	if (ret) {
 		dev_warn(dev, "%s: Governor %s not started(%d)\n",
 			 __func__, df->governor->name, ret);
-		if (prev_gov) {
-			df->governor = prev_gov;
-			strncpy(df->governor_name, prev_gov->name,
-				DEVFREQ_NAME_LEN);
-			df->governor->event_handler(df, DEVFREQ_GOV_START,
-						    NULL);
-		}
+		df->governor = prev_gov;
+		strncpy(df->governor_name, prev_gov->name, DEVFREQ_NAME_LEN);
+		df->governor->event_handler(df, DEVFREQ_GOV_START, NULL);
 	}
 out:
 	mutex_unlock(&devfreq_list_lock);
@@ -922,6 +921,7 @@ static ssize_t polling_interval_store(struct device *dev,
 	if (ret != 1)
 		return -EINVAL;
 
+	df->profile->polling_ms = value;
 	df->governor->event_handler(df, DEVFREQ_GOV_INTERVAL, &value);
 	ret = count;
 

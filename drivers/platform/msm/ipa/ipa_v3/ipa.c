@@ -390,10 +390,9 @@ static int ipa3_active_clients_log_init(void)
 {
 	int i;
 
-	ipa3_ctx->ipa3_active_clients_logging.log_buffer[0] = kzalloc(
-			IPA3_ACTIVE_CLIENTS_LOG_BUFFER_SIZE_LINES *
-			sizeof(char[IPA3_ACTIVE_CLIENTS_LOG_LINE_LEN]),
-			GFP_KERNEL);
+	ipa3_ctx->ipa3_active_clients_logging.log_buffer[0] = kcalloc(IPA3_ACTIVE_CLIENTS_LOG_BUFFER_SIZE_LINES,
+								      sizeof(char[IPA3_ACTIVE_CLIENTS_LOG_LINE_LEN]),
+								      GFP_KERNEL);
 	active_clients_table_buf = kzalloc(sizeof(
 			char[IPA3_ACTIVE_CLIENTS_TABLE_BUF_SIZE]), GFP_KERNEL);
 	if (ipa3_ctx->ipa3_active_clients_logging.log_buffer == NULL) {
@@ -3550,7 +3549,6 @@ void ipa3_dec_client_disable_clks(struct ipa_active_client_logging_info *id)
 */
 void ipa3_inc_acquire_wakelock(void)
 {
-#if 0
 	unsigned long flags;
 
 	spin_lock_irqsave(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
@@ -3560,7 +3558,6 @@ void ipa3_inc_acquire_wakelock(void)
 	IPADBG_LOW("active wakelock ref cnt = %d\n",
 		ipa3_ctx->wakelock_ref_cnt.cnt);
 	spin_unlock_irqrestore(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
-#endif
 }
 
 /**
@@ -3573,7 +3570,6 @@ void ipa3_inc_acquire_wakelock(void)
  */
 void ipa3_dec_release_wakelock(void)
 {
-#if 0
 	unsigned long flags;
 
 	spin_lock_irqsave(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
@@ -3583,7 +3579,6 @@ void ipa3_dec_release_wakelock(void)
 	if (ipa3_ctx->wakelock_ref_cnt.cnt == 0)
 		__pm_relax(&ipa3_ctx->w_lock);
 	spin_unlock_irqrestore(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
-#endif
 }
 
 int ipa3_set_required_perf_profile(enum ipa_voltage_level floor_voltage,
@@ -4755,11 +4750,9 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 		goto fail_nat_dev_add;
 	}
 
-#if 0
 	/* Create a wakeup source. */
 	wakeup_source_init(&ipa3_ctx->w_lock, "IPA_WS");
 	spin_lock_init(&ipa3_ctx->wakelock_ref_cnt.spinlock);
-#endif
 
 	/* Initialize IPA RM (resource manager) */
 	result = ipa_rm_initialize();

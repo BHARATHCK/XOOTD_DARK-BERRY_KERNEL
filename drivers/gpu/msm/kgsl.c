@@ -118,8 +118,8 @@ static struct {
 
 static int kgsl_memfree_init(void)
 {
-	memfree.list = kzalloc(MEMFREE_ENTRIES * sizeof(struct memfree_entry),
-		GFP_KERNEL);
+	memfree.list = kcalloc(MEMFREE_ENTRIES, sizeof(struct memfree_entry),
+			       GFP_KERNEL);
 
 	return (memfree.list) ? 0 : -ENOMEM;
 }
@@ -2850,11 +2850,11 @@ long kgsl_ioctl_gpumem_sync_cache_bulk(struct kgsl_device_private *dev_priv,
 			|| param->count > (PAGE_SIZE / sizeof(unsigned int)))
 		return -EINVAL;
 
-	id_list = kzalloc(param->count * sizeof(unsigned int), GFP_KERNEL);
+	id_list = kcalloc(param->count, sizeof(unsigned int), GFP_KERNEL);
 	if (id_list == NULL)
 		return -ENOMEM;
 
-	entries = kzalloc(param->count * sizeof(*entries), GFP_KERNEL);
+	entries = kcalloc(param->count, sizeof(*entries), GFP_KERNEL);
 	if (entries == NULL) {
 		ret = -ENOMEM;
 		goto end;
@@ -2954,11 +2954,11 @@ long kgsl_ioctl_gpuobj_sync(struct kgsl_device_private *dev_priv,
 	if (param->count == 0 || param->count > 128)
 		return -EINVAL;
 
-	objs = kzalloc(param->count * sizeof(*objs), GFP_KERNEL);
+	objs = kcalloc(param->count, sizeof(*objs), GFP_KERNEL);
 	if (objs == NULL)
 		return -ENOMEM;
 
-	entries = kzalloc(param->count * sizeof(*entries), GFP_KERNEL);
+	entries = kcalloc(param->count, sizeof(*entries), GFP_KERNEL);
 	if (entries == NULL) {
 		kfree(objs);
 		return -ENOMEM;
@@ -4949,18 +4949,6 @@ static int __init kgsl_core_init(void)
 
 	kgsl_driver.mem_workqueue = alloc_workqueue("kgsl-mementry",
 		WQ_MEM_RECLAIM, 0);
-
-	init_kthread_worker(&kgsl_driver.worker);
-
-	kgsl_driver.worker_thread = kthread_run(kthread_worker_fn,
-		&kgsl_driver.worker, "kgsl_worker_thread");
-
-	if (IS_ERR(kgsl_driver.worker_thread)) {
-		pr_err("unable to start kgsl thread\n");
-		goto err;
-	}
-
-	sched_setscheduler(kgsl_driver.worker_thread, SCHED_FIFO, &param);
 
 	init_kthread_worker(&kgsl_driver.worker);
 
