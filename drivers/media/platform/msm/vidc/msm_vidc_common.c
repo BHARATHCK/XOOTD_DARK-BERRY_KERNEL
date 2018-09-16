@@ -505,8 +505,8 @@ static int msm_comm_vote_bus(struct msm_vidc_core *core)
 	list_for_each_entry(inst, &core->instances, list)
 		++vote_data_count;
 
-	vote_data = kzalloc(sizeof(*vote_data) * vote_data_count,
-			GFP_TEMPORARY);
+	vote_data = kcalloc(vote_data_count, sizeof(*vote_data),
+			    GFP_TEMPORARY);
 	if (!vote_data) {
 		dprintk(VIDC_ERR, "%s: failed to allocate memory\n", __func__);
 		rc = -ENOMEM;
@@ -712,16 +712,16 @@ static void handle_sys_init_done(enum hal_command_response cmd, void *data)
 	return;
 }
 
+static void put_inst_helper(struct kref *kref)
+{
+	struct msm_vidc_inst *inst = container_of(kref, struct msm_vidc_inst,
+			kref);
+
+	msm_vidc_destroy(inst);
+}
+
 static void put_inst(struct msm_vidc_inst *inst)
 {
-	void put_inst_helper(struct kref *kref)
-	{
-		struct msm_vidc_inst *inst = container_of(kref,
-				struct msm_vidc_inst, kref);
-
-		msm_vidc_destroy(inst);
-	}
-
 	if (!inst)
 		return;
 
@@ -2689,8 +2689,9 @@ static int msm_comm_init_core(struct msm_vidc_inst *inst)
 		goto core_already_inited;
 	}
 	if (!core->capabilities) {
-		core->capabilities = kzalloc(VIDC_MAX_SESSIONS *
-				sizeof(struct msm_vidc_capability), GFP_KERNEL);
+		core->capabilities = kcalloc(VIDC_MAX_SESSIONS,
+					     sizeof(struct msm_vidc_capability),
+					     GFP_KERNEL);
 		if (!core->capabilities) {
 			dprintk(VIDC_ERR,
 				"%s: failed to allocate capabilities\n",

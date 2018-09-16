@@ -1325,7 +1325,7 @@ static struct bnx2fc_hba *bnx2fc_hba_create(struct cnic_dev *cnic)
 	hba->next_conn_id = 0;
 
 	hba->tgt_ofld_list =
-		kzalloc(sizeof(struct bnx2fc_rport *) * BNX2FC_NUM_MAX_SESS,
+		kcalloc(BNX2FC_NUM_MAX_SESS, sizeof(struct bnx2fc_rport *),
 			GFP_KERNEL);
 	if (!hba->tgt_ofld_list) {
 		printk(KERN_ERR PFX "Unable to allocate tgt offload list\n");
@@ -2251,7 +2251,7 @@ static int _bnx2fc_create(struct net_device *netdev,
 	if (phys_dev->ethtool_ops && phys_dev->ethtool_ops->get_drvinfo) {
 		memset(&drvinfo, 0, sizeof(drvinfo));
 		phys_dev->ethtool_ops->get_drvinfo(phys_dev, &drvinfo);
-		if (strncmp(drvinfo.driver, "bnx2x", strlen("bnx2x"))) {
+		if (strncmp(drvinfo.driver, "bnx2x", DSTRLEN("bnx2x"))) {
 			printk(KERN_ERR PFX "Not a netxtreme2 device\n");
 			rc = -EINVAL;
 			goto netdev_err;

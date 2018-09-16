@@ -28,6 +28,38 @@ config BUILDTIME_EXTABLE_SORT
 
 menu "General setup"
 
+config ZEN_INTERACTIVE
+	bool "Tune kernel for interactivity"
+	default y
+	help
+	  Tunes the kernel for responsiveness at the cost of throughput and power usage.
+
+	  --- Virtual Memory Subsystem ---------------------------
+
+	    Mem dirty before bg writeback..:  10 %  ->  20 %
+	    Mem dirty before sync writeback:  20 %  ->  50 %
+
+	  --- Block Layer ----------------------------------------
+
+	    Block Layer Queue Depth........: 128    -> 512
+	    Default MQ scheduler......: mq-deadline -> bfq
+
+	  --- CPU Scheduler (CFS) --------------------------------
+
+	    Scheduling latency.............:   6    ->   3    ms
+	    Minimal granularity............:   0.75 ->   0.3  ms
+	    Wakeup granularity.............:   1    ->   0.5  ms
+	    CPU migration cost.............:   0.5  ->   0.25 ms
+	    Bandwidth slice size...........:   5    ->   3    ms
+	    Ondemand fine upscaling limit..:  95 %  ->  85 %
+
+	  --- CPU Scheduler (MuQSS) ------------------------------
+
+	    Scheduling interval............:   6    ->   3    ms
+	    ISO task max realtime use......:  70 %  ->  25 %
+	    Ondemand coarse upscaling limit:  80 %  ->  45 %
+	    Ondemand fine upscaling limit..:  95 %  ->  45 %
+
 config BROKEN
 	bool
 
@@ -285,7 +317,7 @@ config FHANDLE
 
 config USELIB
 	bool "uselib syscall"
-	default y
+	default n
 	help
 	  This option enables the uselib syscall, a system call used in the
 	  dynamic linker from libc5 and earlier.  glibc does not use this
@@ -824,7 +856,9 @@ config IKCONFIG_PROC
 config LOG_BUF_SHIFT
 	int "Kernel log buffer size (16 => 64KB, 17 => 128KB)"
 	range 12 25
-	default 17
+	# Huaqin modify for ZQL1650-358 by liunianliang at 2018/02/08 start
+	default 20
+	# Huaqin modify for ZQL1650-358 by liunianliang at 2018/02/08 end
 	depends on PRINTK
 	help
 	  Select the minimal kernel log buffer size as a power of 2.

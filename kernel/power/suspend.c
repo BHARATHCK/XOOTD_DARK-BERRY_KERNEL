@@ -31,6 +31,7 @@
 #include <linux/compiler.h>
 #include <linux/moduleparam.h>
 #include <linux/wakeup_reason.h>
+#include <linux/cpufreq.h>
 
 #include "power.h"
 
@@ -314,6 +315,9 @@ void __weak arch_suspend_enable_irqs(void)
  *
  * This function should be called after devices have been suspended.
  */
+#ifdef CONFIG_QUICK_THAW_FINGERPRINTD
+extern void thaw_fingerprintd(void);
+#endif
 static int suspend_enter(suspend_state_t state, bool *wakeup)
 {
 	char suspend_abort[MAX_SUSPEND_ABORT_LEN];
@@ -401,6 +405,9 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 
  Platform_wake:
 	platform_resume_noirq(state);
+#ifdef CONFIG_QUICK_THAW_FINGERPRINTD
+	thaw_fingerprintd();
+#endif
 	dpm_resume_noirq(PMSG_RESUME);
 
  Platform_early_resume:
@@ -471,6 +478,7 @@ int suspend_devices_and_enter(suspend_state_t state)
  */
 static void suspend_finish(void)
 {
+	msm_do_pm_boost(true);
 	suspend_thaw_processes();
 	pm_notifier_call_chain(PM_POST_SUSPEND);
 	pm_restore_console();

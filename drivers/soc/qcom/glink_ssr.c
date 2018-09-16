@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,7 +24,7 @@
 #include <soc/qcom/subsystem_notif.h>
 #include "glink_private.h"
 
-#define GLINK_SSR_REPLY_TIMEOUT	HZ
+#define GLINK_SSR_REPLY_TIMEOUT	1000
 #define GLINK_SSR_INTENT_REQ_TIMEOUT_MS 500
 #define GLINK_SSR_EVENT_INIT ~0
 #define NUM_LOG_PAGES 3
@@ -489,6 +489,17 @@ static int glink_ssr_restart_notifier_cb(struct notifier_block *this,
 					"Subsystem notification failed", ret);
 			return ret;
 		}
+	} else if (code == SUBSYS_AFTER_POWERUP) {
+		GLINK_SSR_LOG("<SSR> %s: %s: subsystem restart for %s\n",
+				__func__, "SUBSYS_AFTER_POWERUP",
+				notifier->subsystem);
+		ss_info = get_info_for_subsystem(notifier->subsystem);
+		if (ss_info == NULL) {
+			GLINK_SSR_ERR("<SSR> %s: ss_info is NULL\n", __func__);
+			return -EINVAL;
+		}
+
+		glink_subsys_up(ss_info->edge);
 	}
 	return NOTIFY_DONE;
 }
@@ -648,7 +659,7 @@ int notify_for_subsystem(struct subsys_info *ss_info)
 
 	wait_ret = wait_event_timeout(waitqueue,
 			atomic_read(&responses_remaining) == 0,
-			GLINK_SSR_REPLY_TIMEOUT);
+			msecs_to_jiffies(GLINK_SSR_REPLY_TIMEOUT));
 
 	list_for_each_entry(ss_leaf_entry, &ss_info->notify_list,
 			notify_list_node) {
@@ -836,7 +847,8 @@ bool glink_ssr_wait_cleanup_done(unsigned ssr_timeout_multiplier)
 {
 	int wait_ret =
 		wait_for_completion_timeout(&notifications_successful_complete,
-			ssr_timeout_multiplier * GLINK_SSR_REPLY_TIMEOUT);
+			ssr_timeout_multiplier *
+			msecs_to_jiffies(GLINK_SSR_REPLY_TIMEOUT));
 	reinit_completion(&notifications_successful_complete);
 
 	if (!notifications_successful || !wait_ret)

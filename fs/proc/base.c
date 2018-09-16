@@ -87,6 +87,7 @@
 #include <linux/slab.h>
 #include <linux/flex_array.h>
 #include <linux/posix-timers.h>
+#include <linux/cpufreq.h>
 #ifdef CONFIG_HARDWALL
 #include <asm/hardwall.h>
 #endif
@@ -3081,6 +3082,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 #endif
 	REG("cmdline",    S_IRUGO, proc_pid_cmdline_ops),
 	ONE("stat",       S_IRUGO, proc_tgid_stat),
+	/* Huaqin add  for ZQL1650-860 by lvzheng at 2018/03/22 start */
+	ONE("cpu_infos",      S_IRUGO, proc_tgid_stat),
+	/* Huaqin add  for ZQL1650-860 by lvzheng at 2018/02/22 end */
 	ONE("statm",      S_IRUGO, proc_pid_statm),
 	REG("maps",       S_IRUGO, proc_pid_maps_operations),
 #ifdef CONFIG_NUMA
@@ -3151,6 +3155,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("timers",	  S_IRUGO, proc_timers_operations),
 #endif
 	REG("timerslack_ns", S_IRUGO|S_IWUGO, proc_pid_set_timerslack_ns_operations),
+#ifdef CONFIG_CPU_FREQ_STAT
+	ONE("time_in_state", 0444, proc_time_in_state_show),
+#endif
 };
 
 static int proc_tgid_base_readdir(struct file *file, struct dir_context *ctx)
@@ -3473,6 +3480,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 	REG("cmdline",   S_IRUGO, proc_pid_cmdline_ops),
 	ONE("stat",      S_IRUGO, proc_tid_stat),
+	/* Huaqin add  for ZQL1650-860 by lvzheng at 2018/03/22 start */
+	ONE("cpu_infos",      S_IRUGO, proc_tid_stat),
+	/* Huaqin add  for ZQL1650-860 by lvzheng at 2018/03/22 end */
 	ONE("statm",     S_IRUGO, proc_pid_statm),
 	REG("maps",      S_IRUGO, proc_tid_maps_operations),
 #ifdef CONFIG_PROC_CHILDREN
@@ -3534,6 +3544,9 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("gid_map",    S_IRUGO|S_IWUSR, proc_gid_map_operations),
 	REG("projid_map", S_IRUGO|S_IWUSR, proc_projid_map_operations),
 	REG("setgroups",  S_IRUGO|S_IWUSR, proc_setgroups_operations),
+#endif
+#ifdef CONFIG_CPU_FREQ_STAT
+	ONE("time_in_state", 0444, proc_time_in_state_show),
 #endif
 };
 
@@ -3765,3 +3778,4 @@ static const struct file_operations proc_task_operations = {
 	.iterate	= proc_task_readdir,
 	.llseek		= default_llseek,
 };
+

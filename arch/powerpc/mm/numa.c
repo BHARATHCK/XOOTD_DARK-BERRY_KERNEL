@@ -1038,7 +1038,7 @@ static int __init early_numa(char *p)
 
 	p = strstr(p, "fake=");
 	if (p)
-		cmdline = p + strlen("fake=");
+		cmdline = p + DSTRLEN("fake=");
 
 	return 0;
 }
@@ -1443,7 +1443,7 @@ int arch_update_cpu_topology(void)
 	if (!weight)
 		return 0;
 
-	updates = kzalloc(weight * (sizeof(*updates)), GFP_KERNEL);
+	updates = kcalloc(weight, sizeof(*updates), GFP_KERNEL);
 	if (!updates)
 		return 0;
 

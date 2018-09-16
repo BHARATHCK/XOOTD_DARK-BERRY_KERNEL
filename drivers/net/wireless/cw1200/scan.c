@@ -226,9 +226,9 @@ void cw1200_scan_work(struct work_struct *work)
 			scan.type = WSM_SCAN_TYPE_BACKGROUND;
 			scan.flags = WSM_SCAN_FLAG_FORCE_BACKGROUND;
 		}
-		scan.ch = kzalloc(
-			sizeof(struct wsm_scan_ch) * (it - priv->scan.curr),
-			GFP_KERNEL);
+		scan.ch = kcalloc(it - priv->scan.curr,
+				  sizeof(struct wsm_scan_ch),
+				  GFP_KERNEL);
 		if (!scan.ch) {
 			priv->scan.status = -ENOMEM;
 			goto fail;
@@ -402,7 +402,7 @@ void cw1200_probe_work(struct work_struct *work)
 	}
 	wsm = (struct wsm_tx *)frame.skb->data;
 	scan.max_tx_rate = wsm->max_tx_rate;
-	scan.band = (priv->channel->band == IEEE80211_BAND_5GHZ) ?
+	scan.band = (priv->channel->band == NL80211_BAND_5GHZ) ?
 		WSM_PHY_BAND_5G : WSM_PHY_BAND_2_4G;
 	if (priv->join_status == CW1200_JOIN_STATUS_STA ||
 	    priv->join_status == CW1200_JOIN_STATUS_IBSS) {

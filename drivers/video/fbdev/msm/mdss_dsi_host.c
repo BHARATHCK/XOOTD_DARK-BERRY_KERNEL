@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <linux/iopoll.h>
 #include <linux/kthread.h>
+#include <linux/errno.h>
 
 #include <linux/msm-bus.h>
 
@@ -62,7 +63,7 @@ struct mdss_hw mdss_dsi1_hw = {
 
 #define DSI_EVENT_Q_MAX	4
 
-#define DSI_BTA_EVENT_TIMEOUT (HZ / 10)
+#define DSI_BTA_EVENT_TIMEOUT (100)
 
 /* Mutex common for both the controllers */
 static struct mutex dsi_mtx;
@@ -1136,7 +1137,10 @@ static int mdss_dsi_read_status(struct mdss_dsi_ctrl_pdata *ctrl)
 	int i, rc, *lenp;
 	int start = 0;
 	struct dcs_cmd_req cmdreq;
-
+/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 start */
+	int times = 0;
+	*ctrl->status_buf.data = 0;
+/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 end */
 	rc = 1;
 	lenp = ctrl->status_valid_params ?: ctrl->status_cmds_rlen;
 
@@ -1146,6 +1150,9 @@ static int mdss_dsi_read_status(struct mdss_dsi_ctrl_pdata *ctrl)
 	}
 
 	for (i = 0; i < ctrl->status_cmds.cmd_cnt; ++i) {
+/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 start */
+		while(times < 2 && ((*ctrl->status_buf.data) != 0x0c)&& ((*ctrl->status_buf.data) != 0x9c)&& ((*ctrl->status_buf.data) != 0x98)){
+/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 end */
 		memset(&cmdreq, 0, sizeof(cmdreq));
 		cmdreq.cmds = ctrl->status_cmds.cmds + i;
 		cmdreq.cmds_cnt = 1;
@@ -1160,6 +1167,10 @@ static int mdss_dsi_read_status(struct mdss_dsi_ctrl_pdata *ctrl)
 			cmdreq.flags |= CMD_REQ_HS_MODE;
 
 		rc = mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 start */
+		times++;
+		}
+/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 end */
 		if (rc <= 0) {
 			if (!mdss_dsi_sync_wait_enable(ctrl) ||
 				mdss_dsi_sync_wait_trigger(ctrl))
@@ -1236,6 +1247,9 @@ int mdss_dsi_reg_status_check(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 		else if (sctrl_pdata)
 			ret = ctrl_pdata->check_read_status(sctrl_pdata);
 	} else {
+/* Huaqin duchangguo modify for disabling esd check when panel is not connect before boot start*/
+		ret = -ENOTSUPP;
+/* Huaqin duchangguo modify for disabling esd check when panel is not connect before boot end*/
 		pr_err("%s: Read status register returned error\n", __func__);
 	}
 
@@ -1623,7 +1637,7 @@ int mdss_dsi_bta_status_check(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 	wmb();
 
 	ret = wait_for_completion_killable_timeout(&ctrl_pdata->bta_comp,
-						DSI_BTA_EVENT_TIMEOUT);
+						msecs_to_jiffies(DSI_BTA_EVENT_TIMEOUT));
 	if (ret <= 0) {
 		mdss_dsi_disable_irq(ctrl_pdata, DSI_BTA_TERM);
 		pr_err("%s: DSI BTA error: %i\n", __func__, ret);

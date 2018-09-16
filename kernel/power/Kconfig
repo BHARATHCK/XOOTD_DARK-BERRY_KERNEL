@@ -38,6 +38,13 @@ config WAKELOCK
 
 	  Say Y if you are running an android userspace.
 
+config POWERSUSPEND
+	bool "Power suspend"
+	default y
+	---help---
+	  Call early suspend handlers when the user requested sleep state
+	  changes.
+
 config HIBERNATE_CALLBACKS
 	bool
 
@@ -115,6 +122,9 @@ config PM_SLEEP
 	def_bool y
 	depends on SUSPEND || HIBERNATE_CALLBACKS
 	select PM
+
+config SUSPEND_NVS
+	def_bool y
 
 config PM_SLEEP_SMP
 	def_bool y
@@ -321,3 +331,21 @@ config PM_GENERIC_DOMAINS_OF
 
 config CPU_PM
 	bool
+
+config	BOEFFLA_WL_BLOCKER
+		bool "Boeffla generic wakelock blocker driver"
+		depends on PM
+		default Y
+
+config QUICK_THAW_FINGERPRINTD
+	bool "Quickly resume fingerprintd"
+	depends on SUSPEND
+	default y
+
+config QUICK_WAKEUP
+	bool "Quick wakeup"
+	depends on SUSPEND
+	default y
+	---help---
+	  Allow kernel driver to do periodic jobs without resuming the full system
+	  This option can increase battery life on android powered smartphone.

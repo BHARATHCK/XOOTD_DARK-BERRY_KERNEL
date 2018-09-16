@@ -544,8 +544,9 @@ static void ufshcd_cmd_log_init(struct ufs_hba *hba)
 {
 	/* Allocate log entries */
 	if (!hba->cmd_log.entries) {
-		hba->cmd_log.entries = kzalloc(UFSHCD_MAX_CMD_LOGGING *
-			sizeof(struct ufshcd_cmd_log_entry), GFP_KERNEL);
+		hba->cmd_log.entries = kcalloc(UFSHCD_MAX_CMD_LOGGING,
+					       sizeof(struct ufshcd_cmd_log_entry),
+					       GFP_KERNEL);
 		if (!hba->cmd_log.entries)
 			return;
 		dev_dbg(hba->dev, "%s: cmd_log.entries initialized\n",
@@ -624,6 +625,7 @@ static void ufshcd_cmd_log_init(struct ufs_hba *hba)
 {
 }
 
+#ifdef CONFIG_TRACEPOINTS
 static void __ufshcd_cmd_log(struct ufs_hba *hba, char *str, char *cmd_type,
 			     unsigned int tag, u8 cmd_id, u8 idn, u8 lun,
 			     sector_t lba, int transfer_len, u8 opcode)
@@ -638,6 +640,7 @@ static void __ufshcd_cmd_log(struct ufs_hba *hba, char *str, char *cmd_type,
 
 	ufshcd_add_command_trace(hba, &entry, opcode);
 }
+#endif
 
 static void ufshcd_dme_cmd_log(struct ufs_hba *hba, char *str, u8 cmd_id)
 {

@@ -153,10 +153,6 @@ module_param_named(
 	print_parsed_dt, print_parsed_dt, bool, S_IRUGO | S_IWUSR | S_IWGRP
 );
 
-static bool sleep_disabled;
-module_param_named(sleep_disabled,
-	sleep_disabled, bool, S_IRUGO | S_IWUSR | S_IWGRP);
-
 s32 msm_cpuidle_get_deep_idle_latency(void)
 {
 	return 10;
@@ -707,9 +703,6 @@ static int cpu_power_select(struct cpuidle_device *dev,
 
 	if (!cpu)
 		return -EINVAL;
-
-	if ((sleep_disabled && !cpu_isolated(dev->cpu)) || sleep_us  < 0)
-		return 0;
 
 	idx_restrict = cpu->nlevels + 1;
 
@@ -1760,7 +1753,7 @@ static void register_cpu_lpm_stats(struct lpm_cpu *cpu,
 	const char **level_name;
 	int i;
 
-	level_name = kzalloc(cpu->nlevels * sizeof(*level_name), GFP_KERNEL);
+	level_name = kcalloc(cpu->nlevels, sizeof(*level_name), GFP_KERNEL);
 
 	if (!level_name)
 		return;
@@ -1784,7 +1777,7 @@ static void register_cluster_lpm_stats(struct lpm_cluster *cl,
 	if (!cl)
 		return;
 
-	level_name = kzalloc(cl->nlevels * sizeof(*level_name), GFP_KERNEL);
+	level_name = kcalloc(cl->nlevels, sizeof(*level_name), GFP_KERNEL);
 
 	if (!level_name)
 		return;

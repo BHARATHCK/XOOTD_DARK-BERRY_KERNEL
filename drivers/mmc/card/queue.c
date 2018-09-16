@@ -86,6 +86,11 @@ static inline void mmc_cmdq_ready_wait(struct mmc_host *host,
 {
 	struct mmc_cmdq_context_info *ctx = &host->cmdq_ctx;
 	struct request_queue *q = mq->queue;
+	struct sched_param scheduler_params = {0};
+
+	scheduler_params.sched_priority = 1;
+
+	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
 
 	/*
 	 * Wait until all of the following conditions are true:
@@ -633,8 +638,8 @@ int mmc_cmdq_init(struct mmc_queue *mq, struct mmc_card *card)
 	init_waitqueue_head(&card->host->cmdq_ctx.queue_empty_wq);
 	init_waitqueue_head(&card->host->cmdq_ctx.wait);
 
-	mq->mqrq_cmdq = kzalloc(
-			sizeof(struct mmc_queue_req) * q_depth, GFP_KERNEL);
+	mq->mqrq_cmdq = kcalloc(q_depth, sizeof(struct mmc_queue_req),
+				GFP_KERNEL);
 	if (!mq->mqrq_cmdq) {
 		pr_warn("%s: unable to allocate mqrq's for q_depth %d\n",
 			mmc_card_name(card), q_depth);
