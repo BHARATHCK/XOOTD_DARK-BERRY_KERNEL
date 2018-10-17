@@ -113,8 +113,5 @@ all.config
 # Kdevelop4
 *.kdev4
 
-# Don't track 'out' folder
 out
-
-# darkonah builder script
-darkonah.sh
+build.sh

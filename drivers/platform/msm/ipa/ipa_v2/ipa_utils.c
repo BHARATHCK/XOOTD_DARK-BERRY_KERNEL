@@ -37,7 +37,7 @@
 
 #define IPA_TAG_SLEEP_MIN_USEC (1000)
 #define IPA_TAG_SLEEP_MAX_USEC (2000)
-#define IPA_FORCE_CLOSE_TAG_PROCESS_TIMEOUT IPA_TIMEOUT(10)
+#define IPA_FORCE_CLOSE_TAG_PROCESS_TIMEOUT (10 * HZ)
 #define IPA_BCR_REG_VAL (0x001FFF7F)
 #define IPA_AGGR_GRAN_MIN (1)
 #define IPA_AGGR_GRAN_MAX (32)
@@ -4530,7 +4530,7 @@ int ipa_tag_process(struct ipa_desc desc[],
 	}
 	sys = ipa_ctx->ep[ep_idx].sys;
 
-	tag_desc = kcalloc(IPA_TAG_MAX_DESC, sizeof(*tag_desc), flag);
+	tag_desc = kzalloc(sizeof(*tag_desc) * IPA_TAG_MAX_DESC, flag);
 	if (!tag_desc) {
 		IPAERR("failed to allocate memory\n");
 		res = -ENOMEM;
@@ -4974,7 +4974,7 @@ static int ipa2_generate_tag_process(void)
 {
 	int res;
 
-	res = ipa_tag_process(NULL, 0, IPA_TIMEOUT(1));
+	res = ipa_tag_process(NULL, 0, HZ);
 	if (res)
 		IPAERR("TAG process failed\n");
 

@@ -29,7 +29,7 @@ static const int sync_write_expire = 550;	/* max time before a write sync is sub
 static const int async_read_expire = 250;	/* ditto for read async, these limits are SOFT! */
 static const int async_write_expire = 450;	/* ditto for write async, these limits are SOFT! */
 static const int fifo_batch = 16;		/* # of sequential requests treated as one by the above parameters. */
-static const int writes_starved = 4;		/* max times reads can starve a write */
+static const int writes_starved = 1;		/* max times reads can starve a write */
 static const int sleep_latency_multiple = 10;	/* multple for expire time when device is asleep */
 
 /* Elevator data */
@@ -117,10 +117,10 @@ maple_expired_request(struct maple_data *mdata, int sync, int data_dir)
 static struct request *
 maple_choose_expired_request(struct maple_data *mdata)
 {
-	struct request *rq_sync_read = maple_expired_request(mdata, SYNC, READ);
-	struct request *rq_sync_write = maple_expired_request(mdata, SYNC, WRITE);
 	struct request *rq_async_read = maple_expired_request(mdata, ASYNC, READ);
 	struct request *rq_async_write = maple_expired_request(mdata, ASYNC, WRITE);
+    struct request *rq_sync_read = maple_expired_request(mdata, SYNC, READ);
+	struct request *rq_sync_write = maple_expired_request(mdata, SYNC, WRITE);
 
 	/* Reset (non-expired-)batch-counter */
 	mdata->batched = 0;
@@ -130,24 +130,31 @@ maple_choose_expired_request(struct maple_data *mdata)
 	 * Asynchronous requests have priority over synchronous.
 	 * Read requests have priority over write.
 	 */
+	if (rq_async_read && rq_sync_read) {
+		if (time_after(rq_sync_read->fifo_time, rq_async_read->fifo_time))
+			return rq_async_read;
+	} else if (rq_async_read) {
+		return rq_async_read;
+	} else if (rq_sync_read) {
+		return rq_sync_read;
+	}
 
-   if (rq_async_read && rq_sync_read) {
-     if (time_after(rq_sync_read->fifo_time, rq_async_read->fifo_time))
-             return rq_async_read;
-   } else if (rq_async_read) {
-           return rq_async_read;
-   } else if (rq_sync_read) {
-           return rq_sync_read;
-   }
-
-   if (rq_async_write && rq_sync_write) {
-if (time_after(rq_sync_write->fifo_time, rq_async_write->fifo_time))
-             return rq_async_write;
-   } else if (rq_async_write) {
-           return rq_async_write;
-   } else if (rq_sync_write) {
-           return rq_sync_write;
-   }
+    if (rq_async_read)
+		return rq_async_read;
+	else if (rq_sync_read)
+		return rq_sync_read;
+	else if (rq_async_write)
+		return rq_async_write;
+	else if (rq_sync_write)
+		return rq_sync_write;
+	else if (rq_async_read && rq_sync_read) {
+		if (time_after(rq_sync_read->fifo_time, rq_async_read->fifo_time))
+			return rq_async_read;
+	}
+	else if (rq_async_write && rq_sync_write) {
+		if (time_after(rq_sync_write->fifo_time, rq_async_write->fifo_time))
+			return rq_async_write;
+	}
 
 	return NULL;
 }

@@ -134,7 +134,7 @@ unsigned int __read_mostly sysctl_sched_shares_window = 10000000UL;
  * to consumption or the quota being specified to be smaller than the slice)
  * we will always only issue the remaining available time.
  *
- * default: 4 msec, units: microseconds
+ * default: 5 msec, units: microseconds
   */
 #ifdef CONFIG_ZEN_INTERACTIVE
 unsigned int sysctl_sched_cfs_bandwidth_slice		= 3000UL;
@@ -6568,9 +6568,10 @@ static int find_new_capacity(struct energy_env *eenv,
 	eenv->cap_idx = max_idx;
 
 	for (idx = 0; idx < sge->nr_cap_states; idx++) {
-		if (sge->cap_states[idx].cap >= util)
+		if (sge->cap_states[idx].cap >= util) {
 			eenv->cap_idx = idx;
 			break;
+		}
 	}
 
 	return eenv->cap_idx;
@@ -11578,10 +11579,10 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 	struct rq *rq;
 	int i;
 
-	tg->cfs_rq = kcalloc(nr_cpu_ids, sizeof(cfs_rq), GFP_KERNEL);
+	tg->cfs_rq = kzalloc(sizeof(cfs_rq) * nr_cpu_ids, GFP_KERNEL);
 	if (!tg->cfs_rq)
 		goto err;
-	tg->se = kcalloc(nr_cpu_ids, sizeof(se), GFP_KERNEL);
+	tg->se = kzalloc(sizeof(se) * nr_cpu_ids, GFP_KERNEL);
 	if (!tg->se)
 		goto err;
 

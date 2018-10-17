@@ -865,7 +865,7 @@ static int cpufreq_interactive_notifier(
 	int cpu;
 	unsigned long flags;
 
-	if (val == CPUFREQ_POSTCHANGE) {
+	if (val == CPUFREQ_PRECHANGE) {
 		ppol = per_cpu(polinfo, freq->cpu);
 		if (!ppol)
 			return 0;
@@ -1251,10 +1251,6 @@ static ssize_t store_io_is_busy(struct cpufreq_interactive_tunables *tunables,
 	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
-
-	/* Prevent ROM to set 1 here */
-	if (val == 1)
-		val = 0;
 	tunables->io_is_busy = val;
 
 	if (!tunables->use_sched_load)

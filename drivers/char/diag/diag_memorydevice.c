@@ -210,10 +210,8 @@ int diag_md_write(int id, unsigned char *buf, int len, int ctx)
 		wake_up_interruptible(&driver->wait_q);
 	}
 
-	if (!found) {
-		diag_ws_on_copy_fail(DIAG_WS_MUX);
+	if (!found)
 		return -EINVAL;
-	}
 
 	return 0;
 }
@@ -393,7 +391,7 @@ int diag_md_init()
 	for (i = 0; i < NUM_DIAG_MD_DEV; i++) {
 		ch = &diag_md[i];
 		ch->num_tbl_entries = diag_mempools[ch->mempool].poolsize;
-		ch->tbl = kcalloc(ch->num_tbl_entries,
+		ch->tbl = kzalloc(ch->num_tbl_entries *
 				  sizeof(struct diag_buf_tbl_t),
 				  GFP_KERNEL);
 		if (!ch->tbl)

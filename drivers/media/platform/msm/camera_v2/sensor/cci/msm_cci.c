@@ -847,7 +847,7 @@ static int32_t msm_cci_i2c_read(struct v4l2_subdev *sd,
 	if (rc < 0) {
 		pr_err("%s:%d msm_cci_set_clk_param failed rc = %d\n",
 			__func__, __LINE__, rc);
-		goto ERROR;
+		return rc;
 	}
 
 	/*
@@ -1174,9 +1174,8 @@ static int32_t msm_cci_i2c_write_async(struct v4l2_subdev *sd,
 	}
 
 	cci_i2c_write_cfg_w->reg_setting =
-		kcalloc(cci_i2c_write_cfg->size,
-			sizeof(struct msm_camera_i2c_reg_array),
-			GFP_KERNEL);
+		kzalloc(sizeof(struct msm_camera_i2c_reg_array)*
+		cci_i2c_write_cfg->size, GFP_KERNEL);
 	if (!cci_i2c_write_cfg_w->reg_setting) {
 		pr_err("%s: %d Couldn't allocate memory\n", __func__, __LINE__);
 		kfree(write_async);
@@ -1666,11 +1665,11 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	struct msm_camera_cci_ctrl *cci_ctrl)
 {
 	int32_t rc = 0;
-	struct cci_device *cci_dev;
+	struct cci_device *cci_dev; 
 	CDBG("%s line %d cmd %d\n", __func__, __LINE__,
 		cci_ctrl->cmd);
 	cci_dev = v4l2_get_subdevdata(sd);
-         mutex_lock(&cci_dev->mutex);
+         mutex_lock(&cci_dev->mutex); 
 	switch (cci_ctrl->cmd) {
 	case MSM_CCI_INIT:
 		rc = msm_cci_init(sd, cci_ctrl);
@@ -1680,7 +1679,7 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 		break;
 	case MSM_CCI_I2C_READ:
 		if (cci_dev->cci_state == CCI_STATE_DISABLED)
-		 break;
+		 break; 
 		rc = msm_cci_i2c_read_bytes(sd, cci_ctrl);
 		break;
 	case MSM_CCI_I2C_WRITE:
@@ -1689,7 +1688,7 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	case MSM_CCI_I2C_WRITE_ASYNC:
 	case MSM_CCI_I2C_WRITE_SYNC_BLOCK:
 		if (cci_dev->cci_state == CCI_STATE_DISABLED)
-		break;
+		break; 
 		rc = msm_cci_write(sd, cci_ctrl);
 		break;
 	case MSM_CCI_GPIO_WRITE:
@@ -1904,7 +1903,7 @@ static int32_t msm_cci_init_gpio_params(struct cci_device *cci_dev)
 	}
 
 	gpio_tbl = cci_dev->cci_gpio_tbl =
-		kcalloc(tbl_size, sizeof(struct gpio), GFP_KERNEL);
+		kzalloc(sizeof(struct gpio) * tbl_size, GFP_KERNEL);
 	if (!gpio_tbl) {
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		return 0;
@@ -1916,7 +1915,7 @@ static int32_t msm_cci_init_gpio_params(struct cci_device *cci_dev)
 			gpio_tbl[i].gpio);
 	}
 
-	val_array = kcalloc(tbl_size, sizeof(uint32_t), GFP_KERNEL);
+	val_array = kzalloc(sizeof(uint32_t) * tbl_size, GFP_KERNEL);
 	if (!val_array) {
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		rc = -ENOMEM;
@@ -2095,7 +2094,7 @@ static int msm_cci_probe(struct platform_device *pdev)
 		pr_err("%s: no enough memory\n", __func__);
 		return -ENOMEM;
 	}
-	mutex_init(&new_cci_dev->mutex);
+	mutex_init(&new_cci_dev->mutex); 
 	v4l2_subdev_init(&new_cci_dev->msm_sd.sd, &msm_cci_subdev_ops);
 	new_cci_dev->msm_sd.sd.internal_ops = &msm_cci_internal_ops;
 	snprintf(new_cci_dev->msm_sd.sd.name,
@@ -2186,7 +2185,7 @@ cci_invalid_vreg_data:
 cci_release_mem:
 	msm_camera_put_reg_base(pdev, new_cci_dev->base, "cci", true);
 cci_no_resource:
-	mutex_destroy(&new_cci_dev->mutex);
+	mutex_destroy(&new_cci_dev->mutex); 
 	kfree(new_cci_dev);
 	return rc;
 }

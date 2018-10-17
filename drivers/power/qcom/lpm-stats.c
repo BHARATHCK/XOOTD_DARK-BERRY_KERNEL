@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -445,8 +445,8 @@ static int config_level(const char *name, const char **levels,
 	INIT_LIST_HEAD(&stats->sibling);
 	INIT_LIST_HEAD(&stats->child);
 
-	stats->time_stats = kcalloc(num_levels, sizeof(struct level_stats),
-				    GFP_KERNEL);
+	stats->time_stats = kzalloc(sizeof(struct level_stats) *
+				num_levels, GFP_KERNEL);
 	if (!stats->time_stats) {
 		pr_err("%s: Insufficient memory for %s level time stats\n",
 			__func__, name);
@@ -682,11 +682,14 @@ static void cleanup_stats(struct lpm_stats *stats)
 {
 	struct list_head *centry = NULL;
 	struct lpm_stats *pos = NULL;
+	struct lpm_stats *n = NULL;
 
 	centry = &stats->child;
-	list_for_each_entry_reverse(pos, centry, sibling) {
-		if (!list_empty(&pos->child))
+	list_for_each_entry_safe_reverse(pos, n, centry, sibling) {
+		if (!list_empty(&pos->child)) {
 			cleanup_stats(pos);
+			continue;
+		}
 
 		list_del_init(&pos->child);
 

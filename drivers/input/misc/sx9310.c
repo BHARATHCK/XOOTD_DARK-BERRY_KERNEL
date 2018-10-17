@@ -1353,7 +1353,7 @@ static int sx9310_probe(struct i2c_client *client,
 		dev_dbg(&client->dev,
 			"\t Initialized Device Specific Memory: 0x%p\n",
 			pDevice);
-
+	
 		/* Huaqin add for check hw by zhuqiang at 2018/06/22 start */
 		if (sx9310_Hardware_Check(this) != 0)
 		{

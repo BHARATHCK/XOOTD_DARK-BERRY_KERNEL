@@ -505,8 +505,8 @@ static int msm_comm_vote_bus(struct msm_vidc_core *core)
 	list_for_each_entry(inst, &core->instances, list)
 		++vote_data_count;
 
-	vote_data = kcalloc(vote_data_count, sizeof(*vote_data),
-			    GFP_TEMPORARY);
+	vote_data = kzalloc(sizeof(*vote_data) * vote_data_count,
+			GFP_TEMPORARY);
 	if (!vote_data) {
 		dprintk(VIDC_ERR, "%s: failed to allocate memory\n", __func__);
 		rc = -ENOMEM;
@@ -2689,9 +2689,8 @@ static int msm_comm_init_core(struct msm_vidc_inst *inst)
 		goto core_already_inited;
 	}
 	if (!core->capabilities) {
-		core->capabilities = kcalloc(VIDC_MAX_SESSIONS,
-					     sizeof(struct msm_vidc_capability),
-					     GFP_KERNEL);
+		core->capabilities = kzalloc(VIDC_MAX_SESSIONS *
+				sizeof(struct msm_vidc_capability), GFP_KERNEL);
 		if (!core->capabilities) {
 			dprintk(VIDC_ERR,
 				"%s: failed to allocate capabilities\n",
@@ -3818,17 +3817,17 @@ int msm_comm_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb)
 	 * Don't queue if:
 	 * 1) Hardware isn't ready (that's simple)
 	 */
-	defer = defer ?: inst->state != MSM_VIDC_START_DONE;
+	defer = defer || (inst->state != MSM_VIDC_START_DONE);
 
 	/*
 	 * 2) The client explicitly tells us not to because it wants this
 	 * buffer to be batched with future frames.  The batch size (on both
 	 * capabilities) is completely determined by the client.
 	 */
-	defer = defer ?: vbuf && vbuf->flags & V4L2_MSM_BUF_FLAG_DEFER;
+	defer = defer || (vbuf && vbuf->flags & V4L2_MSM_BUF_FLAG_DEFER);
 
 	/* 3) If we're in batch mode, we must have full batches of both types */
-	defer = defer ?: batch_mode && (!output_count || !capture_count);
+	defer = defer || (batch_mode && (!output_count || !capture_count));
 
 	if (defer) {
 		dprintk(VIDC_DBG, "Deferring queue of %pK\n", vb);

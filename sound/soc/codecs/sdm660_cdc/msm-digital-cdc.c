@@ -86,8 +86,6 @@ static int msm_digcdc_clock_control(bool flag)
 	if (flag) {
 		mutex_lock(&pdata->cdc_int_mclk0_mutex);
 		if (atomic_read(&pdata->int_mclk0_enabled) == false) {
-			if (msm_dig_cdc->regmap->cache_only == true)
-				return ret;
 			if (pdata->native_clk_set)
 				pdata->digital_cdc_core_clk.clk_freq_in_hz =
 							NATIVE_MCLK_RATE;
@@ -105,7 +103,8 @@ static int msm_digcdc_clock_control(bool flag)
 				 * Avoid access to lpass register
 				 * as clock enable failed during SSR.
 				 */
-				msm_dig_cdc->regmap->cache_only = true;
+				if (ret == -ENODEV)
+					msm_dig_cdc->regmap->cache_only = true;
 				return ret;
 			}
 			pr_debug("enabled digital codec core clk\n");
@@ -1301,9 +1300,53 @@ static struct kobj_attribute headphone_gain_attribute =
 	__ATTR(headphone_gain, 0664,
 		headphone_gain_show,
 		headphone_gain_store);
+		
+static ssize_t mic_gain_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n",
+		snd_soc_read(sound_control_codec_ptr, MSM89XX_CDC_CORE_TX5_VOL_CTL_GAIN));
+}
+ static ssize_t mic_gain_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int input;
+ 	sscanf(buf, "%d", &input);
+ 	if (input < -10 || input > 20)
+		input = 0;
+ 	snd_soc_write(sound_control_codec_ptr, MSM89XX_CDC_CORE_TX5_VOL_CTL_GAIN, input);
+ 	return count;
+}
+ static struct kobj_attribute mic_gain_attribute =
+	__ATTR(mic_gain, 0664,
+		mic_gain_show,
+		mic_gain_store);
+ static ssize_t earpiece_gain_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n",
+		snd_soc_read(sound_control_codec_ptr, MSM89XX_CDC_CORE_RX3_VOL_CTL_B2_CTL));
+}
+ static ssize_t earpiece_gain_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int input;
+ 	sscanf(buf, "%d", &input);
+ 	if (input < -10 || input > 20)
+		input = 0;
+ 	snd_soc_write(sound_control_codec_ptr, MSM89XX_CDC_CORE_RX3_VOL_CTL_B2_CTL, input);
+ 	return count;
+}
+ static struct kobj_attribute earpiece_gain_attribute =
+	__ATTR(earpiece_gain, 0664,
+		earpiece_gain_show,
+		earpiece_gain_store);
+
 
 static struct attribute *sound_control_attrs[] = {
 		&headphone_gain_attribute.attr,
+		&mic_gain_attribute.attr,
+		&earpiece_gain_attribute.attr,
 		NULL,
 };
 
@@ -1928,13 +1971,14 @@ static const struct snd_kcontrol_new msm_dig_snd_controls[] = {
 	SOC_SINGLE_SX_TLV("IIR2 INP1 Volume",
 			  MSM89XX_CDC_CORE_IIR2_GAIN_B1_CTL,
 			0,  -84, 40, digital_gain),
-
+#ifndef CONFIG_SOUND_CONTROL
 	SOC_SINGLE_SX_TLV("RX1 Digital Volume",
 		MSM89XX_CDC_CORE_RX1_VOL_CTL_B2_CTL,
 		0, -84, 40, digital_gain),
 	SOC_SINGLE_SX_TLV("RX2 Digital Volume",
 		MSM89XX_CDC_CORE_RX2_VOL_CTL_B2_CTL,
 		0, -84, 40, digital_gain),
+#endif
 	SOC_SINGLE_SX_TLV("RX3 Digital Volume",
 		MSM89XX_CDC_CORE_RX3_VOL_CTL_B2_CTL,
 		0, -84, 40, digital_gain),
@@ -2223,10 +2267,6 @@ static int msm_dig_suspend(struct device *dev)
 
 	if (!registered_digcodec || !msm_dig_cdc) {
 		pr_debug("%s:digcodec not initialized, return\n", __func__);
-		return 0;
-	}
-	if (!registered_digcodec->component.card) {
-		pr_debug("%s:component not initialized, return\n", __func__);
 		return 0;
 	}
 	pdata = snd_soc_card_get_drvdata(registered_digcodec->component.card);

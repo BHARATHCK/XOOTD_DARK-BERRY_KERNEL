@@ -64,6 +64,7 @@ const char *ipa3_event_name[] = {
 	__stringify(IPA_QUOTA_REACH),
 	__stringify(IPA_SSR_BEFORE_SHUTDOWN),
 	__stringify(IPA_SSR_AFTER_POWERUP),
+	__stringify(WLAN_FWR_SSR_BEFORE_SHUTDOWN),
 };
 
 const char *ipa3_hdr_l2_type_name[] = {
@@ -501,6 +502,12 @@ static int ipa3_attrib_dump(struct ipa_rule_attrib *attrib,
 	if (attrib->attrib_mask & IPA_FLT_MAC_ETHER_TYPE)
 		pr_err("ether_type:%x ", attrib->ether_type);
 
+	if (attrib->attrib_mask & IPA_FLT_TCP_SYN)
+		pr_err("tcp syn ");
+
+	if (attrib->attrib_mask & IPA_FLT_TCP_SYN_L2TP)
+		pr_err("tcp syn l2tp ");
+
 	pr_err("\n");
 	return 0;
 }
@@ -733,7 +740,7 @@ static ssize_t ipa3_read_rt_hw(struct file *file, char __user *ubuf,
 
 	IPADBG("Tring to parse %d H/W routing tables - IP=%d\n", tbls_num, ip);
 
-	rules = kcalloc(IPA_DBG_MAX_RULE_IN_TBL, sizeof(*rules), GFP_KERNEL);
+	rules = kzalloc(sizeof(*rules) * IPA_DBG_MAX_RULE_IN_TBL, GFP_KERNEL);
 	if (!rules) {
 		IPAERR("failed to allocate mem for tbl rules\n");
 		return -ENOMEM;
@@ -951,7 +958,7 @@ static ssize_t ipa3_read_flt_hw(struct file *file, char __user *ubuf,
 	IPADBG("Tring to parse %d H/W filtering tables - IP=%d\n",
 		ipa3_ctx->ep_flt_num, ip);
 
-	rules = kcalloc(IPA_DBG_MAX_RULE_IN_TBL, sizeof(*rules), GFP_KERNEL);
+	rules = kzalloc(sizeof(*rules) * IPA_DBG_MAX_RULE_IN_TBL, GFP_KERNEL);
 	if (!rules) {
 		IPAERR("failed to allocate mem for tbl rules\n");
 		return -ENOMEM;

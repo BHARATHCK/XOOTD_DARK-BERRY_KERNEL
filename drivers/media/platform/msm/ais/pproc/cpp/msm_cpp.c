@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -582,9 +582,9 @@ static int32_t msm_cpp_create_buff_queue(struct cpp_device *cpp_dev,
 {
 	struct msm_cpp_buff_queue_info_t *buff_queue;
 
-	buff_queue = kcalloc(num_buffq,
-			     sizeof(struct msm_cpp_buff_queue_info_t),
-			     GFP_KERNEL);
+	buff_queue = kzalloc(
+		sizeof(struct msm_cpp_buff_queue_info_t) * num_buffq,
+		GFP_KERNEL);
 	if (!buff_queue) {
 		pr_err("Buff queue allocation failure\n");
 		return -ENOMEM;
@@ -836,9 +836,14 @@ static irqreturn_t msm_cpp_irq(int irq_num, void *data)
 	if (irq_status & 0x8) {
 		tx_level = msm_camera_io_r(cpp_dev->base +
 			MSM_CPP_MICRO_FIFO_TX_STAT) >> 2;
-		for (i = 0; i < tx_level; i++) {
-			tx_fifo[i] = msm_camera_io_r(cpp_dev->base +
-				MSM_CPP_MICRO_FIFO_TX_DATA);
+		if (tx_level < MSM_CPP_TX_FIFO_LEVEL) {
+			for (i = 0; i < tx_level; i++) {
+				tx_fifo[i] = msm_camera_io_r(cpp_dev->base +
+					MSM_CPP_MICRO_FIFO_TX_DATA);
+			}
+		} else {
+			pr_err("Fatal invalid tx level %d", tx_level);
+			goto err;
 		}
 		spin_lock_irqsave(&cpp_dev->tasklet_lock, flags);
 		queue_cmd = &cpp_dev->tasklet_queue_cmd[cpp_dev->taskletq_idx];
@@ -893,6 +898,7 @@ static irqreturn_t msm_cpp_irq(int irq_num, void *data)
 		pr_debug("DEBUG_R1: 0x%x\n",
 			msm_camera_io_r(cpp_dev->base + 0x8C));
 	}
+err:
 	msm_camera_io_w(irq_status, cpp_dev->base + MSM_CPP_MICRO_IRQGEN_CLR);
 	return IRQ_HANDLED;
 }
@@ -3087,9 +3093,9 @@ long msm_cpp_subdev_ioctl(struct v4l2_subdev *sd,
 
 		if (u_stream_buff_info->num_buffs != 0) {
 			k_stream_buff_info.buffer_info =
-				kcalloc(k_stream_buff_info.num_buffs,
-					sizeof(struct msm_cpp_buffer_info_t),
-					GFP_KERNEL);
+				kzalloc(k_stream_buff_info.num_buffs *
+				sizeof(struct msm_cpp_buffer_info_t),
+				GFP_KERNEL);
 			if (ZERO_OR_NULL_PTR(k_stream_buff_info.buffer_info)) {
 				pr_err("%s:%d: malloc error\n",
 					__func__, __LINE__);

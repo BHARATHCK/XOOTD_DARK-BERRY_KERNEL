@@ -632,13 +632,6 @@ static inline struct cfq_group *cfqg_parent(struct cfq_group *cfqg)
 	return pblkg ? blkg_to_cfqg(pblkg) : NULL;
 }
 
-static inline bool cfqg_is_descendant(struct cfq_group *cfqg,
-				      struct cfq_group *ancestor)
-{
-	return cgroup_is_descendant(cfqg_to_blkg(cfqg)->blkcg->css.cgroup,
-				    cfqg_to_blkg(ancestor)->blkcg->css.cgroup);
-}
-
 static inline void cfqg_get(struct cfq_group *cfqg)
 {
 	return blkg_get(cfqg_to_blkg(cfqg));
@@ -765,11 +758,6 @@ static void cfqg_stats_xfer_dead(struct cfq_group *cfqg)
 #else	/* CONFIG_CFQ_GROUP_IOSCHED */
 
 static inline struct cfq_group *cfqg_parent(struct cfq_group *cfqg) { return NULL; }
-static inline bool cfqg_is_descendant(struct cfq_group *cfqg,
-				      struct cfq_group *ancestor)
-{
-	return true;
-}
 static inline void cfqg_get(struct cfq_group *cfqg) { }
 static inline void cfqg_put(struct cfq_group *cfqg) { }
 
@@ -2536,7 +2524,7 @@ static int cfq_merge(struct request_queue *q, struct request **req,
 	struct request *__rq;
 
 	__rq = cfq_find_rq_fmerge(cfqd, bio);
-	if (__rq && elv_rq_merge_ok(__rq, bio)) {
+	if (__rq && elv_bio_merge_ok(__rq, bio)) {
 		*req = __rq;
 		return ELEVATOR_FRONT_MERGE;
 	}
@@ -2593,8 +2581,8 @@ cfq_merged_requests(struct request_queue *q, struct request *rq,
 		cfq_del_cfqq_rr(cfqd, cfqq);
 }
 
-static int cfq_allow_merge(struct request_queue *q, struct request *rq,
-			   struct bio *bio)
+static int cfq_allow_bio_merge(struct request_queue *q, struct request *rq,
+			       struct bio *bio)
 {
 	struct cfq_data *cfqd = q->elevator->elevator_data;
 	struct cfq_io_cq *cic;
@@ -2616,6 +2604,12 @@ static int cfq_allow_merge(struct request_queue *q, struct request *rq,
 
 	cfqq = cic_to_cfqq(cic, cfq_bio_sync(bio));
 	return cfqq == RQ_CFQQ(rq);
+}
+
+static int cfq_allow_rq_merge(struct request_queue *q, struct request *rq,
+			      struct request *next)
+{
+	return RQ_CFQQ(rq) == RQ_CFQQ(next);
 }
 
 static inline void cfq_del_timer(struct cfq_data *cfqd, struct cfq_queue *cfqq)
@@ -2914,7 +2908,6 @@ static bool cfq_should_idle(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 static void cfq_arm_slice_timer(struct cfq_data *cfqd)
 {
 	struct cfq_queue *cfqq = cfqd->active_queue;
-	struct cfq_rb_root *st = cfqq->service_tree;
 	struct cfq_io_cq *cic;
 	u64 sl, group_idle = 0;
 	u64 now = ktime_get_ns();
@@ -2924,7 +2917,8 @@ static void cfq_arm_slice_timer(struct cfq_data *cfqd)
 	 * for devices that support queuing, otherwise we still have a problem
 	 * with sync vs async workloads.
 	 */
-	if (blk_queue_nonrot(cfqd->queue) && cfqd->hw_tag)
+	if (blk_queue_nonrot(cfqd->queue) && cfqd->hw_tag &&
+		!cfqd->cfq_group_idle)
 		return;
 
 	WARN_ON(!RB_EMPTY_ROOT(&cfqq->sort_list));
@@ -2966,13 +2960,8 @@ static void cfq_arm_slice_timer(struct cfq_data *cfqd)
 		return;
 	}
 
-	/*
-	 * There are other queues in the group or this is the only group and
-	 * it has too big thinktime, don't do group idle.
-	 */
-	if (group_idle &&
-	    (cfqq->cfqg->nr_cfqq > 1 ||
-	     cfq_io_thinktime_big(cfqd, &st->ttime, true)))
+	/* There are other queues in the group, don't do group idle */
+	if (group_idle && cfqq->cfqg->nr_cfqq > 1)
 		return;
 
 	cfq_mark_cfqq_wait_request(cfqq);
@@ -3840,7 +3829,8 @@ cfq_get_queue(struct cfq_data *cfqd, bool is_sync, struct cfq_io_cq *cic,
 			goto out;
 	}
 
-	cfqq = kmem_cache_alloc_node(cfq_pool, GFP_NOWAIT | __GFP_ZERO,
+	cfqq = kmem_cache_alloc_node(cfq_pool,
+				     GFP_NOWAIT | __GFP_ZERO | __GFP_NOWARN,
 				     cfqd->queue->node);
 	if (!cfqq) {
 		cfqq = &cfqd->oom_cfqq;
@@ -3985,27 +3975,16 @@ cfq_should_preempt(struct cfq_data *cfqd, struct cfq_queue *new_cfqq,
 	if (rq_is_sync(rq) && !cfq_cfqq_sync(cfqq) && !cfq_cfqq_must_dispatch(cfqq))
 		return true;
 
-	/*
-	 * Treat ancestors of current cgroup the same way as current cgroup.
-	 * For anybody else we disallow preemption to guarantee service
-	 * fairness among cgroups.
-	 */
-	if (!cfqg_is_descendant(cfqq->cfqg, new_cfqq->cfqg))
+	if (new_cfqq->cfqg != cfqq->cfqg)
 		return false;
 
 	if (cfq_slice_used(cfqq))
 		return true;
 
-	/*
-	 * Allow an RT request to pre-empt an ongoing non-RT cfqq timeslice.
-	 */
-	if (cfq_class_rt(new_cfqq) && !cfq_class_rt(cfqq))
-		return true;
-
-	WARN_ON_ONCE(cfqq->ioprio_class != new_cfqq->ioprio_class);
 	/* Allow preemption only if we are idling on sync-noidle tree */
 	if (cfqd->serving_wl_type == SYNC_NOIDLE_WORKLOAD &&
 	    cfqq_type(new_cfqq) == SYNC_NOIDLE_WORKLOAD &&
+	    new_cfqq->service_tree->count == 2 &&
 	    RB_EMPTY_ROOT(&cfqq->sort_list))
 		return true;
 
@@ -4014,6 +3993,12 @@ cfq_should_preempt(struct cfq_data *cfqd, struct cfq_queue *new_cfqq,
 	 * it's a metadata request and the current queue is doing regular IO.
 	 */
 	if ((rq->cmd_flags & REQ_PRIO) && !cfqq->prio_pending)
+		return true;
+
+	/*
+	 * Allow an RT request to pre-empt an ongoing non-RT cfqq timeslice.
+	 */
+	if (cfq_class_rt(new_cfqq) && !cfq_class_rt(cfqq))
 		return true;
 
 	/* An idle queue should not be idle now for some reason */
@@ -4819,7 +4804,8 @@ static struct elevator_type iosched_cfq = {
 		.elevator_merge_fn = 		cfq_merge,
 		.elevator_merged_fn =		cfq_merged_request,
 		.elevator_merge_req_fn =	cfq_merged_requests,
-		.elevator_allow_merge_fn =	cfq_allow_merge,
+		.elevator_allow_bio_merge_fn =	cfq_allow_bio_merge,
+		.elevator_allow_rq_merge_fn =	cfq_allow_rq_merge,
 		.elevator_bio_merged_fn =	cfq_bio_merged,
 		.elevator_dispatch_fn =		cfq_dispatch_requests,
 		.elevator_add_req_fn =		cfq_insert_request,

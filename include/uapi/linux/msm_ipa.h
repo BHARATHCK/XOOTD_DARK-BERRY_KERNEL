@@ -148,6 +148,8 @@
 #define IPA_FLT_MAC_SRC_ADDR_802_3	(1ul << 19)
 #define IPA_FLT_MAC_DST_ADDR_802_3	(1ul << 20)
 #define IPA_FLT_MAC_ETHER_TYPE		(1ul << 21)
+#define IPA_FLT_TCP_SYN			(1ul << 23)
+#define IPA_FLT_TCP_SYN_L2TP		(1ul << 24)
 
 /**
  * maximal number of NAT PDNs in the PDN config table
@@ -435,7 +437,13 @@ enum ipa_ssr_event {
 	IPA_SSR_EVENT_MAX
 };
 
-#define IPA_EVENT_MAX_NUM ((int)IPA_SSR_EVENT_MAX)
+enum ipa_wlan_fw_ssr_event {
+	WLAN_FWR_SSR_BEFORE_SHUTDOWN = IPA_SSR_EVENT_MAX,
+	IPA_WLAN_FW_SSR_EVENT_MAX,
+#define IPA_WLAN_FW_SSR_EVENT_MAX IPA_WLAN_FW_SSR_EVENT_MAX
+};
+
+#define IPA_EVENT_MAX_NUM ((int)IPA_WLAN_FW_SSR_EVENT_MAX)
 
 /**
  * enum ipa_rm_resource_name - IPA RM clients identification names

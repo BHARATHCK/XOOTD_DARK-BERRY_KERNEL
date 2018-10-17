@@ -154,7 +154,7 @@ ath10k_wmi_tlv_parse_alloc(struct ath10k *ar, const void *ptr,
 	const void **tb;
 	int ret;
 
-	tb = kcalloc(WMI_TLV_TAG_MAX, sizeof(*tb), gfp);
+	tb = kzalloc(sizeof(*tb) * WMI_TLV_TAG_MAX, gfp);
 	if (!tb)
 		return ERR_PTR(-ENOMEM);
 
@@ -1575,10 +1575,10 @@ ath10k_wmi_tlv_op_gen_start_scan(struct ath10k *ar,
 	bssid_len = arg->n_bssids * sizeof(struct wmi_mac_addr);
 	ie_len = roundup(arg->ie_len, 4);
 	len = (sizeof(*tlv) + sizeof(*cmd)) +
-	      (arg->n_channels ? sizeof(*tlv) + chan_len : 0) +
-	      (arg->n_ssids ? sizeof(*tlv) + ssid_len : 0) +
-	      (arg->n_bssids ? sizeof(*tlv) + bssid_len : 0) +
-	      (arg->ie_len ? sizeof(*tlv) + ie_len : 0);
+	      sizeof(*tlv) + chan_len +
+	      sizeof(*tlv) + ssid_len +
+	      sizeof(*tlv) + bssid_len +
+	      sizeof(*tlv) + ie_len;
 
 	skb = ath10k_wmi_alloc_skb(ar, len);
 	if (!skb)

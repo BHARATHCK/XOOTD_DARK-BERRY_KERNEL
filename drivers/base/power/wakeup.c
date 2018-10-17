@@ -16,9 +16,24 @@
 #include <linux/debugfs.h>
 #include <linux/pm_wakeirq.h>
 #include <linux/types.h>
+#include <linux/moduleparam.h>
+#include <linux/display_state.h>
 #include <trace/events/power.h>
 
 #include "power.h"
+
+static bool enable_qcom_rx_wakelock_ws = true;
+module_param(enable_qcom_rx_wakelock_ws, bool, 0644);
+static bool enable_wlan_extscan_wl_ws = true;
+module_param(enable_wlan_extscan_wl_ws, bool, 0644);
+static bool enable_ipa_ws = false;
+module_param(enable_ipa_ws, bool, 0644);
+static bool enable_wlan_ws = true;
+module_param(enable_wlan_ws, bool, 0644);
+static bool enable_timerfd_ws = false;
+module_param(enable_timerfd_ws, bool, 0644);
+static bool enable_netlink_ws = false;
+module_param(enable_netlink_ws, bool, 0644);
 
 
 #ifdef CONFIG_BOEFFLA_WL_BLOCKER

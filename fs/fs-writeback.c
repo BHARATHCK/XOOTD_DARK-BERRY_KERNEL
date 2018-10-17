@@ -497,9 +497,9 @@ static void inode_switch_wbs(struct inode *inode, int new_wb_id)
 		goto out_free;
 	}
 	inode->i_state |= I_WB_SWITCH;
-	__iget(inode);
 	spin_unlock(&inode->i_lock);
 
+	ihold(inode);
 	isw->inode = inode;
 
 	atomic_inc(&isw_nr_in_flight);
@@ -948,8 +948,7 @@ void wb_start_writeback(struct bdi_writeback *wb, long nr_pages,
 	 * This is WB_SYNC_NONE writeback, so if allocation fails just
 	 * wakeup the thread for old dirty data writeback
 	 */
-	work = kzalloc(sizeof(*work),
-		       GFP_NOWAIT | __GFP_NOMEMALLOC | __GFP_NOWARN);
+	work = kzalloc(sizeof(*work), GFP_ATOMIC);
 	if (!work) {
 		trace_writeback_nowork(wb);
 		wb_wakeup(wb);
@@ -1007,10 +1006,8 @@ void sb_mark_inode_writeback(struct inode *inode)
 
 	if (list_empty(&inode->i_wb_list)) {
 		spin_lock_irqsave(&sb->s_inode_wblist_lock, flags);
-		if (list_empty(&inode->i_wb_list)) {
+		if (list_empty(&inode->i_wb_list))
 			list_add_tail(&inode->i_wb_list, &sb->s_inodes_wb);
-			trace_sb_mark_inode_writeback(inode);
-		}
 		spin_unlock_irqrestore(&sb->s_inode_wblist_lock, flags);
 	}
 }
@@ -1025,10 +1022,7 @@ void sb_clear_inode_writeback(struct inode *inode)
 
 	if (!list_empty(&inode->i_wb_list)) {
 		spin_lock_irqsave(&sb->s_inode_wblist_lock, flags);
-		if (!list_empty(&inode->i_wb_list)) {
-			list_del_init(&inode->i_wb_list);
-			trace_sb_clear_inode_writeback(inode);
-		}
+		list_del_init(&inode->i_wb_list);
 		spin_unlock_irqrestore(&sb->s_inode_wblist_lock, flags);
 	}
 }
@@ -1344,7 +1338,6 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
 	dirty = inode->i_state & I_DIRTY;
 	if (inode->i_state & I_DIRTY_TIME) {
 		if ((dirty & (I_DIRTY_SYNC | I_DIRTY_DATASYNC)) ||
-		    wbc->sync_mode == WB_SYNC_ALL ||
 		    unlikely(inode->i_state & I_DIRTY_TIME_EXPIRED) ||
 		    unlikely(time_after(jiffies,
 					(inode->dirtied_time_when +
@@ -1786,13 +1779,15 @@ static long wb_writeback(struct bdi_writeback *wb,
 		 * become available for writeback. Otherwise
 		 * we'll just busyloop.
 		 */
-		trace_writeback_wait(wb, work);
-		inode = wb_inode(wb->b_more_io.prev);
-		spin_lock(&inode->i_lock);
-		spin_unlock(&wb->list_lock);
-		/* This function drops i_lock... */
-		inode_sleep_on_writeback(inode);
-		spin_lock(&wb->list_lock);
+		if (!list_empty(&wb->b_more_io))  {
+			trace_writeback_wait(wb, work);
+			inode = wb_inode(wb->b_more_io.prev);
+			spin_lock(&inode->i_lock);
+			spin_unlock(&wb->list_lock);
+			/* This function drops i_lock... */
+			inode_sleep_on_writeback(inode);
+			spin_lock(&wb->list_lock);
+		}
 	}
 	spin_unlock(&wb->list_lock);
 	blk_finish_plug(&plug);
@@ -1956,12 +1951,6 @@ void wb_workfn(struct work_struct *work)
 void wakeup_flusher_threads(long nr_pages, enum wb_reason reason)
 {
 	struct backing_dev_info *bdi;
-
-	/*
-	 * If we are expecting writeback progress we must submit plugged IO.
-	 */
-	if (blk_needs_flush_plug(current))
-		blk_schedule_flush_plug(current);
 
 	if (!nr_pages)
 		nr_pages = get_nr_dirty_pages();

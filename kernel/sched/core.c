@@ -75,7 +75,6 @@
 #include <linux/binfmts.h>
 #include <linux/context_tracking.h>
 #include <linux/compiler.h>
-#include <linux/cpufreq.h>
 #include <linux/irq.h>
 #include <linux/sched/core_ctl.h>
 
@@ -302,7 +301,7 @@ late_initcall(sched_init_debug);
  * Number of tasks to iterate in a single balance run.
  * Limited because this is done with IRQs disabled.
  */
-const_debug unsigned int sysctl_sched_nr_migrate = 128;
+const_debug unsigned int sysctl_sched_nr_migrate = 32;
 
 /*
  * period over which we average the RT time consumption, measured
@@ -324,7 +323,7 @@ __read_mostly int scheduler_running;
  * part of the period that we allow rt tasks to run in us.
  * default: 0.95s
  */
-int sysctl_sched_rt_runtime = 980000;
+int sysctl_sched_rt_runtime = 950000;
 
 /* cpus with isolated domains */
 cpumask_var_t cpu_isolated_map;
@@ -970,7 +969,7 @@ static void update_rq_clock_task(struct rq *rq, s64 delta)
 	rq->clock_task += delta;
 
 #if defined(CONFIG_IRQ_TIME_ACCOUNTING) || defined(CONFIG_PARAVIRT_TIME_ACCOUNTING)
-	if ((irq_delta + steal) && sched_feat(NONTASK_CAPACITY))
+	if ((irq_delta + steal) && !!sched_feat(NONTASK_CAPACITY))
 		sched_rt_avg_update(rq, irq_delta + steal);
 #endif
 }
@@ -1239,22 +1238,56 @@ void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_ma
 	p->nr_cpus_allowed = cpumask_weight(new_mask);
 }
 
-static const struct cpumask *get_adjusted_cpumask(const struct task_struct *p,
-	const struct cpumask *req_mask)
+static bool is_perf_crit_kthread(const char *name)
 {
-	/* Force all performance-critical kthreads onto the big cluster */
-	if (p->flags & PF_PERF_CRITICAL)
-		return cpu_perf_mask;
+	static const char *const perf_crit_kthreads[] = {
+		"mdss_fb0",
+		"mdss_dsi_event"
+	};
+	int i;
 
-	return req_mask;
+	for (i = 0; i < ARRAY_SIZE(perf_crit_kthreads); i++) {
+		if (!strcmp(name, perf_crit_kthreads[i]))
+			return true;
+	}
+
+	return false;
+}
+
+static void get_adjusted_cpumask(const struct task_struct *p,
+	struct cpumask *new_mask, const struct cpumask *old_mask)
+{
+	static const unsigned long little_cluster_cpus = 0xf;
+	static const unsigned long big_cluster_cpus = 0xf0;
+
+	/* Don't modify the task's cpumask if it isn't a kthread */
+	if (!(p->flags & PF_KTHREAD))
+		goto keep_orig_mask;
+
+	/* Force all performance-critical kthreads onto the big cluster */
+	if (is_perf_crit_kthread(p->comm)) {
+		cpumask_copy(new_mask, to_cpumask(&big_cluster_cpus));
+		return;
+	}
+
+	/* Force all trivial, unbound kthreads onto the little cluster */
+	if (cpumask_equal(old_mask, cpu_all_mask)) {
+		cpumask_copy(new_mask, to_cpumask(&little_cluster_cpus));
+		return;
+	}
+
+keep_orig_mask:
+	cpumask_copy(new_mask, old_mask);
 }
 
 void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 {
 	struct rq *rq = task_rq(p);
 	bool queued, running;
+	cpumask_t adjusted_mask;
 
-	new_mask = get_adjusted_cpumask(p, new_mask);
+	get_adjusted_cpumask(p, &adjusted_mask, new_mask);
+	new_mask = &adjusted_mask;
 
 	lockdep_assert_held(&p->pi_lock);
 
@@ -1296,9 +1329,10 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	struct rq *rq;
 	unsigned int dest_cpu;
 	int ret = 0;
-	cpumask_t allowed_mask;
+	cpumask_t allowed_mask, adjusted_mask;
 
-	new_mask = get_adjusted_cpumask(p, new_mask);
+	get_adjusted_cpumask(p, &adjusted_mask, new_mask);
+	new_mask = &adjusted_mask;
 
 	rq = task_rq_lock(p, &flags);
 
@@ -2389,10 +2423,6 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 
 #ifdef CONFIG_SCHEDSTATS
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
-#endif
-
-#ifdef CONFIG_CPU_FREQ_STAT
-	cpufreq_task_stats_init(p);
 #endif
 
 	RB_CLEAR_NODE(&p->dl.rb_node);
@@ -5446,6 +5476,8 @@ void show_state_filter(unsigned long state_filter)
 		if (!state_filter || (p->state & state_filter))
 			sched_show_task(p);
 	}
+
+	touch_all_softlockup_watchdogs();
 
 #ifdef CONFIG_SCHED_DEBUG
 	sysrq_sched_debug_show();

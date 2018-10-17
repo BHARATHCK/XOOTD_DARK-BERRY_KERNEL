@@ -28,6 +28,7 @@
 
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
+#include <linux/state_notifier.h>
 #include <linux/input.h>
 #include <linux/slab.h>
 #include <linux/time.h>
@@ -114,7 +115,6 @@ static int do_cpu_boost(struct notifier_block *nb,
 	struct boost_policy *b = boost_policy_g;
 	uint32_t state;
 	struct timeval curr_timeval;
-
 	do_gettimeofday(&curr_timeval);
 
 	if (action != CPUFREQ_ADJUST)
@@ -134,13 +134,13 @@ static int do_cpu_boost(struct notifier_block *nb,
 	if (state & FINGERPRINT_BOOST) {
 		if (curr_timeval.tv_sec>prev_timeval.tv_sec) {
 			prev_timeval.tv_sec = curr_timeval.tv_sec;
-			pr_info("Boosting\n");
-			policy->cur = policy->max;
-			policy->min = policy->max;
-			return NOTIFY_OK;
+	                pr_info("Boosting\n");
+        	        policy->cur = policy->max;
+                	policy->min = policy->max;
+	                return NOTIFY_OK;
 
 		} else {
-			pr_info("Boost avoided!\n");
+			pr_info("Boost avoided!");
 		}
 	}
 	return NOTIFY_OK;
@@ -157,6 +157,9 @@ static void cpu_fp_input_event(struct input_handle *handle, unsigned int type,
 	struct boost_policy *b = boost_policy_g;
 	struct fp_config *fp = &b->fp;
 	uint32_t state;
+
+	if (!state_suspended)
+		return;
 
 	state = get_boost_state(b);
 
@@ -348,7 +351,7 @@ static struct boost_policy *alloc_boost_policy(void)
 	if (!b)
 		return NULL;
 
-	b->wq = alloc_workqueue("cpu_fp_wq", WQ_HIGHPRI | WQ_UNBOUND, 0);
+	b->wq = alloc_workqueue("cpu_fp_wq", WQ_HIGHPRI, 0);
 	if (!b->wq) {
 		pr_err("Failed to allocate workqueue\n");
 		goto free_b;
@@ -366,10 +369,9 @@ static int __init cpu_fp_init(void)
 	struct boost_policy *b;
 	int ret;
 	touched = false;
-
+	
 	do_gettimeofday(&prev_timeval);
-
-	/* To allow first boost */
+	// To allow first boost
 	prev_timeval.tv_sec -= 2;
 
 	b = alloc_boost_policy();

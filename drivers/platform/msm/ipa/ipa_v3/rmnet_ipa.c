@@ -791,6 +791,7 @@ static int ipa3_find_mux_channel_index(uint32_t mux_id)
 static int find_vchannel_name_index(const char *vchannel_name)
 {
 	int i;
+
 	/* Huaqin modify for ZQL1650-620 by liunianliang at 2018/03/09 start */
 	for (i = 0; i < rmnet_ipa3_ctx->rmnet_index; i++) {
 		if (strcmp(rmnet_ipa3_ctx->mux_channel[i].vchannel_name,
