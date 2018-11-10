@@ -95,17 +95,15 @@ static bool lpm_prediction = true;
 module_param_named(lpm_prediction,
 	lpm_prediction, bool, S_IRUGO | S_IWUSR | S_IWGRP);
 
-static uint32_t ref_stddev = 500;
+static uint32_t ref_stddev = 100;
 module_param_named(
 	ref_stddev, ref_stddev, uint, S_IRUGO | S_IWUSR | S_IWGRP
 );
 
-static uint32_t tmr_add = 1000;
+static uint32_t tmr_add = 100;
 module_param_named(
 	tmr_add, tmr_add, uint, S_IRUGO | S_IWUSR | S_IWGRP
 );
-
-static uint32_t ref_premature_cnt = 1;
 
 struct lpm_history {
 	uint32_t resi[MAXSAMPLES];
@@ -154,6 +152,10 @@ static bool print_parsed_dt;
 module_param_named(
 	print_parsed_dt, print_parsed_dt, bool, S_IRUGO | S_IWUSR | S_IWGRP
 );
+
+static bool sleep_disabled;
+module_param_named(sleep_disabled,
+	sleep_disabled, bool, S_IRUGO | S_IWUSR | S_IWGRP);
 
 s32 msm_cpuidle_get_deep_idle_latency(void)
 {
@@ -550,7 +552,6 @@ static uint64_t lpm_cpuidle_predict(struct cpuidle_device *dev,
 	int64_t thresh = LLONG_MAX;
 	struct lpm_history *history = &per_cpu(hist, dev->cpu);
 	uint32_t *min_residency = get_per_cpu_min_residency(dev->cpu);
-	uint32_t *max_residency = get_per_cpu_max_residency(dev->cpu);
 
 	if (!lpm_prediction)
 		return 0;
@@ -637,17 +638,9 @@ again:
 					total += history->resi[i];
 				}
 			}
-			if (failed >= ref_premature_cnt) {
+			if (failed > (MAXSAMPLES/2)) {
 				*idx_restrict = j;
 				do_div(total, failed);
-				for (i = 0; i < j; i++) {
-					if (total < max_residency[i]) {
-						*idx_restrict = i+1;
-						total = max_residency[i];
-						break;
-					}
-				}
-
 				*idx_restrict_time = total;
 				history->stime = ktime_to_us(ktime_get())
 						+ *idx_restrict_time;
@@ -714,6 +707,9 @@ static int cpu_power_select(struct cpuidle_device *dev,
 
 	if (!cpu)
 		return -EINVAL;
+
+	if ((sleep_disabled && !cpu_isolated(dev->cpu)) || sleep_us  < 0)
+		return 0;
 
 	idx_restrict = cpu->nlevels + 1;
 

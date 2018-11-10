@@ -47,9 +47,6 @@
 #include "../wcd9xxx-common-v2.h"
 #include "../wcd9xxx-resmgr-v2.h"
 #include "../wcdcal-hwdep.h"
-#include <linux/proc_fs.h>
-#include <../drivers/base/regmap/internal.h>
-#include <linux/switch.h>
 #include "wcd934x-dsd.h"
 
 #define WCD934X_RATES_MASK (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |\
@@ -135,9 +132,6 @@ static const struct snd_kcontrol_new name##_mux = \
 #define DAPM_MICBIAS2_STANDALONE "MIC BIAS2 Standalone"
 #define DAPM_MICBIAS3_STANDALONE "MIC BIAS3 Standalone"
 #define DAPM_MICBIAS4_STANDALONE "MIC BIAS4 Standalone"
-
-int g_DebugMode = 0;
-struct switch_dev *g_audiowizard_force_preset_sdev = NULL;
 
 #define  TX_HPF_CUT_OFF_FREQ_MASK	0x60
 #define  CF_MIN_3DB_4HZ			0x0
@@ -1906,8 +1900,7 @@ static int tavil_codec_enable_spkr_anc(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		ret = tavil_codec_enable_anc(w, kcontrol, event);
-		queue_delayed_work(system_power_efficient_wq,
-				      &tavil->spk_anc_dwork.dwork,
+		schedule_delayed_work(&tavil->spk_anc_dwork.dwork,
 				      msecs_to_jiffies(spk_anc_en_delay));
 		break;
 	case SND_SOC_DAPM_POST_PMD:
@@ -4138,12 +4131,11 @@ static int tavil_codec_enable_dec(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, hpf_gate_reg, 0x02, 0x00);
 		}
 		/* schedule work queue to Remove Mute */
-		queue_delayed_work(system_power_efficient_wq,
-				      &tavil->tx_mute_dwork[decimator].dwork,
+		schedule_delayed_work(&tavil->tx_mute_dwork[decimator].dwork,
 				      msecs_to_jiffies(tx_unmute_delay));
 		if (tavil->tx_hpf_work[decimator].hpf_cut_off_freq !=
 							CF_MIN_3DB_150HZ)
-			queue_delayed_work(system_power_efficient_wq,
+			schedule_delayed_work(
 					&tavil->tx_hpf_work[decimator].dwork,
 					msecs_to_jiffies(300));
 		/* apply gain after decimator is enabled */
@@ -8218,8 +8210,7 @@ static int tavil_dig_core_power_collapse(struct tavil_priv *tavil,
 
 	if (req_state == POWER_COLLAPSE) {
 		if (tavil->power_active_ref == 0) {
-			queue_delayed_work(system_power_efficient_wq,
-			&tavil->power_gate_work,
+			schedule_delayed_work(&tavil->power_gate_work,
 			msecs_to_jiffies(dig_core_collapse_timer * 1000));
 		}
 	} else if (req_state == POWER_RESUME) {
@@ -9375,20 +9366,6 @@ static int tavil_soc_codec_probe(struct snd_soc_codec *codec)
 	 */
 	tavil_vote_svs(tavil, false);
 
-	/* ASUS_BSP Paul +++ */
-        if (!g_audiowizard_force_preset_sdev) {
-		g_audiowizard_force_preset_sdev = kzalloc(sizeof(struct switch_dev), GFP_KERNEL);
-		if (!g_audiowizard_force_preset_sdev) {
-			pr_err("%s: failed to allocate switch_dev\n", __func__);
-			ret = -ENOMEM;
-		}
-		g_audiowizard_force_preset_sdev->name = "audiowizard_force_preset";
-		g_audiowizard_force_preset_sdev->state = 0;
-		ret = switch_dev_register(g_audiowizard_force_preset_sdev);
-		if (ret < 0)
-			pr_err("%s: failed to register switch audiowizard_force_preset\n", __func__);
-	}
-	/* ASUS_BSP Paul --- */
 	return ret;
 
 err_pdata:
@@ -9806,7 +9783,7 @@ static void tavil_add_child_devices(struct work_struct *work)
 			strlcpy(plat_dev_name, "tavil_swr_ctrl",
 				(WCD934X_STRING_LEN - 1));
 		else if (strnstr(node->name, "msm_cdc_pinctrl",
-				 DSTRLEN("msm_cdc_pinctrl")) != NULL)
+				 strlen("msm_cdc_pinctrl")) != NULL)
 			strlcpy(plat_dev_name, node->name,
 				(WCD934X_STRING_LEN - 1));
 		else

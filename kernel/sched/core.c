@@ -97,38 +97,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 
-static atomic_t __su_instances;
-
-int su_instances(void)
-{
-	return atomic_read(&__su_instances);
-}
-
-bool su_running(void)
-{
-	return su_instances() > 0;
-}
-
-bool su_visible(void)
-{
-	kuid_t uid = current_uid();
-	if (su_running())
-		return true;
-	if (uid_eq(uid, GLOBAL_ROOT_UID) || uid_eq(uid, GLOBAL_SYSTEM_UID))
-		return true;
-	return false;
-}
-
-void su_exec(void)
-{
-	atomic_inc(&__su_instances);
-}
-
-void su_exit(void)
-{
-	atomic_dec(&__su_instances);
-}
-
 ATOMIC_NOTIFIER_HEAD(load_alert_notifier_head);
 
 DEFINE_MUTEX(sched_domains_mutex);
@@ -969,7 +937,7 @@ static void update_rq_clock_task(struct rq *rq, s64 delta)
 	rq->clock_task += delta;
 
 #if defined(CONFIG_IRQ_TIME_ACCOUNTING) || defined(CONFIG_PARAVIRT_TIME_ACCOUNTING)
-	if ((irq_delta + steal) && !!sched_feat(NONTASK_CAPACITY))
+	if ((irq_delta + steal) && sched_feat(NONTASK_CAPACITY))
 		sched_rt_avg_update(rq, irq_delta + steal);
 #endif
 }
@@ -1238,56 +1206,10 @@ void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_ma
 	p->nr_cpus_allowed = cpumask_weight(new_mask);
 }
 
-static bool is_perf_crit_kthread(const char *name)
-{
-	static const char *const perf_crit_kthreads[] = {
-		"mdss_fb0",
-		"mdss_dsi_event"
-	};
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(perf_crit_kthreads); i++) {
-		if (!strcmp(name, perf_crit_kthreads[i]))
-			return true;
-	}
-
-	return false;
-}
-
-static void get_adjusted_cpumask(const struct task_struct *p,
-	struct cpumask *new_mask, const struct cpumask *old_mask)
-{
-	static const unsigned long little_cluster_cpus = 0xf;
-	static const unsigned long big_cluster_cpus = 0xf0;
-
-	/* Don't modify the task's cpumask if it isn't a kthread */
-	if (!(p->flags & PF_KTHREAD))
-		goto keep_orig_mask;
-
-	/* Force all performance-critical kthreads onto the big cluster */
-	if (is_perf_crit_kthread(p->comm)) {
-		cpumask_copy(new_mask, to_cpumask(&big_cluster_cpus));
-		return;
-	}
-
-	/* Force all trivial, unbound kthreads onto the little cluster */
-	if (cpumask_equal(old_mask, cpu_all_mask)) {
-		cpumask_copy(new_mask, to_cpumask(&little_cluster_cpus));
-		return;
-	}
-
-keep_orig_mask:
-	cpumask_copy(new_mask, old_mask);
-}
-
 void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 {
 	struct rq *rq = task_rq(p);
 	bool queued, running;
-	cpumask_t adjusted_mask;
-
-	get_adjusted_cpumask(p, &adjusted_mask, new_mask);
-	new_mask = &adjusted_mask;
 
 	lockdep_assert_held(&p->pi_lock);
 
@@ -1329,10 +1251,7 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	struct rq *rq;
 	unsigned int dest_cpu;
 	int ret = 0;
-	cpumask_t allowed_mask, adjusted_mask;
-
-	get_adjusted_cpumask(p, &adjusted_mask, new_mask);
-	new_mask = &adjusted_mask;
+	cpumask_t allowed_mask;
 
 	rq = task_rq_lock(p, &flags);
 

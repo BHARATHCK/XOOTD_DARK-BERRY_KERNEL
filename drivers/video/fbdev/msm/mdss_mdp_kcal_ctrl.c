@@ -419,10 +419,6 @@ static ssize_t kcal_invert_store(struct device *dev,
 	int kcal_invert, r;
 	struct kcal_lut_data *lut_data = dev_get_drvdata(dev);
 
-	// AP: don't do anything with KCAL invert as it is broken
-	if (true)
-		return count;
-
 	r = kstrtoint(buf, 10, &kcal_invert);
 	if ((r) || (kcal_invert != 0 && kcal_invert != 1) ||
 		(lut_data->invert == kcal_invert))
@@ -579,7 +575,7 @@ static int mdss_mdp_kcal_update_queue(struct device *dev)
 	if (lut_data->queue_changes) {
 		mdss_mdp_kcal_update_pcc(lut_data);
 		mdss_mdp_kcal_update_pa(lut_data);
-		//mdss_mdp_kcal_update_igc(lut_data);
+		mdss_mdp_kcal_update_igc(lut_data);
 		lut_data->queue_changes = false;
 	}
 

@@ -2547,10 +2547,6 @@
 #include "sdm660-gpu.dtsi"
 #include "sdm660-pm.dtsi"
 
-&usb_otg_hs {
-	status = "ok";
-};
-
 &gdsc_usb30 {
 	status = "ok";
 };
