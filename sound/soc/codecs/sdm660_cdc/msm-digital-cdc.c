@@ -1265,7 +1265,7 @@ static void sdm660_tx_mute_update_callback(struct work_struct *work)
 }
 
 #ifdef CONFIG_SOUND_CONTROL
-struct snd_soc_codec *sound_control_codec_ptr;
+static struct snd_soc_codec *sound_control_codec_ptr;
 
 static ssize_t headphone_gain_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -1284,10 +1284,10 @@ static ssize_t headphone_gain_store(struct kobject *kobj,
 
 	sscanf(buf, "%d %d", &input_l, &input_r);
 
-	if (input_l < -40 || input_l > 20)
+	if (input_l < -84 || input_l > 20)
 		input_l = 0;
 
-	if (input_r < -40 || input_r > 20)
+	if (input_r < -84 || input_r > 20)
 		input_r = 0;
 
 	snd_soc_write(sound_control_codec_ptr, MSM89XX_CDC_CORE_RX1_VOL_CTL_B2_CTL, input_l);
@@ -1501,9 +1501,6 @@ static const struct snd_soc_dapm_route audio_dig_map[] = {
 	{"RX2 MIX1 INP2", "RX3", "I2S RX3"},
 	{"RX2 MIX1 INP2", "IIR1", "IIR1"},
 	{"RX2 MIX1 INP2", "IIR2", "IIR2"},
-	{"RX2 MIX1 INP3", "RX1", "I2S RX1"},
-	{"RX2 MIX1 INP3", "RX2", "I2S RX2"},
-	{"RX2 MIX1 INP3", "RX3", "I2S RX3"},
 
 	{"RX3 MIX1 INP1", "RX1", "I2S RX1"},
 	{"RX3 MIX1 INP1", "RX2", "I2S RX2"},
@@ -1515,9 +1512,6 @@ static const struct snd_soc_dapm_route audio_dig_map[] = {
 	{"RX3 MIX1 INP2", "RX3", "I2S RX3"},
 	{"RX3 MIX1 INP2", "IIR1", "IIR1"},
 	{"RX3 MIX1 INP2", "IIR2", "IIR2"},
-	{"RX3 MIX1 INP3", "RX1", "I2S RX1"},
-	{"RX3 MIX1 INP3", "RX2", "I2S RX2"},
-	{"RX3 MIX1 INP3", "RX3", "I2S RX3"},
 
 	{"RX1 MIX2 INP1", "IIR1", "IIR1"},
 	{"RX2 MIX2 INP1", "IIR1", "IIR1"},

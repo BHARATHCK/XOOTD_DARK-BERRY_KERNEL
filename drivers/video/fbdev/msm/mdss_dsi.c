@@ -39,9 +39,6 @@
 #include "mdss_panel.h"
 /* Huaqin modify for Modification sequence by qimaokang at 2018/06/25 end */
 
-#ifdef CONFIG_STATE_NOTIFIER
-#include <linux/state_notifier.h>
-#endif
 
 #define CMDLINE_DSI_CTL_NUM_STRING_LEN 2
 
@@ -499,18 +496,12 @@ static int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 		if ((pinfo->panel_power_state != MDSS_PANEL_POWER_LCD_DISABLED)
 		     && (pinfo->panel_power_state != MDSS_PANEL_POWER_OFF))
 			ret = mdss_dsi_panel_power_off(pdata);
-#ifdef CONFIG_STATE_NOTIFIER
-		state_suspend();
-#endif
 		break;
 	case MDSS_PANEL_POWER_ON:
 		if (mdss_dsi_is_panel_on_lp(pdata))
 			ret = mdss_dsi_panel_power_lp(pdata, false);
 		else
 			ret = mdss_dsi_panel_power_on(pdata);
-#ifdef CONFIG_STATE_NOTIFIER
-		state_resume();
-#endif
 		break;
 	case MDSS_PANEL_POWER_LP1:
 	case MDSS_PANEL_POWER_LP2:
@@ -816,7 +807,7 @@ static ssize_t mdss_dsi_cmd_state_write(struct file *file,
 	}
 	input[count-1] = '\0';
 
-	if (strnstr(input, "dsi_hs_mode", DSTRLEN("dsi_hs_mode")))
+	if (strnstr(input, "dsi_hs_mode", strlen("dsi_hs_mode")))
 		*link_state = DSI_HS_MODE;
 	else
 		*link_state = DSI_LP_MODE;
@@ -3078,7 +3069,7 @@ static struct device_node *mdss_dsi_config_panel(struct platform_device *pdev,
 	int ndx)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = platform_get_drvdata(pdev);
-	char panel_cfg[MDSS_MAX_PANEL_LEN + 1];
+	char panel_cfg[MDSS_MAX_PANEL_LEN];
 	struct device_node *dsi_pan_node = NULL;
 	int rc = 0;
 

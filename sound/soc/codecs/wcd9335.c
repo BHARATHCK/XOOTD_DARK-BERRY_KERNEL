@@ -2580,7 +2580,6 @@ static int slim_tx_mixer_put(struct snd_kcontrol *kcontrol,
 		if (dai_id >= ARRAY_SIZE(vport_i2s_check_table)) {
 			dev_err(codec->dev, "%s: dai_id: %d, out of bounds\n",
 				__func__, dai_id);
-			mutex_unlock(&tasha_p->codec_mutex);
 			return -EINVAL;
 		}
 		vtable = vport_i2s_check_table[dai_id];
@@ -5963,7 +5962,7 @@ static int tasha_codec_enable_dec(struct snd_soc_dapm_widget *w,
 				      msecs_to_jiffies(tx_unmute_delay));
 		if (tasha->tx_hpf_work[decimator].hpf_cut_off_freq !=
 							CF_MIN_3DB_150HZ)
-			queue_delayed_work(system_power_efficient_wq,
+			schedule_delayed_work(
 					&tasha->tx_hpf_work[decimator].dwork,
 					msecs_to_jiffies(300));
 		/* apply gain after decimator is enabled */
@@ -14156,7 +14155,7 @@ static void tasha_add_child_devices(struct work_struct *work)
 			strlcpy(plat_dev_name, "tasha_swr_ctrl",
 				(WCD9335_STRING_LEN - 1));
 		else if (strnstr(node->name, "msm_cdc_pinctrl",
-				 DSTRLEN("msm_cdc_pinctrl")) != NULL)
+				 strlen("msm_cdc_pinctrl")) != NULL)
 			strlcpy(plat_dev_name, node->name,
 				(WCD9335_STRING_LEN - 1));
 		else

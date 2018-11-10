@@ -146,7 +146,7 @@ fail_drop:
 	return ERR_PTR(err);
 }
 
-static inline int is_extension_exist(const unsigned char *s, const char *sub)
+static int is_extension_exist(const unsigned char *s, const char *sub)
 {
 	size_t slen = strlen(s);
 	size_t sublen = strlen(sub);
@@ -1261,3 +1261,4 @@ const struct inode_operations f2fs_special_inode_operations = {
 	.removexattr    = generic_removexattr,
 #endif
 };
+

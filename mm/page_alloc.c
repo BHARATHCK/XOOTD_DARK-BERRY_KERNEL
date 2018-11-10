@@ -62,8 +62,6 @@
 #include <linux/sched/rt.h>
 #include <linux/page_owner.h>
 #include <linux/kthread.h>
-#include <linux/random.h>
-#include <linux/simple_lmk.h>
 
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
@@ -1062,13 +1060,6 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 		debug_check_no_obj_freed(page_address(page),
 					   PAGE_SIZE << order);
 	}
-
-	if (IS_ENABLED(CONFIG_PAGE_SANITIZE)) {
-		int i;
-		for (i = 0; i < (1 << order); i++)
-			clear_highpage(page + i);
-	}
-
 	arch_free_page(page, order);
 	kernel_poison_pages(page, 1 << order, 0);
 	kernel_map_pages(page, 1 << order, 0);
@@ -1107,16 +1098,6 @@ static void __init __free_pages_boot_core(struct page *page, unsigned long pfn, 
 	}
 	__ClearPageReserved(p);
 	set_page_count(p, 0);
-
-	if (!PageHighMem(page) && page_to_pfn(page) < 0x100000) {
-		unsigned long hash = 0;
-		size_t index, end = PAGE_SIZE * nr_pages / sizeof hash;
-		const unsigned long *data = lowmem_page_address(page);
-
-		for (index = 0; index < end; index++)
-			hash ^= hash + data[index];
-		add_device_randomness((const void *)&hash, sizeof(hash));
-	}
 
 	page_zone(page)->managed_pages += nr_pages;
 	set_page_refcounted(page);
@@ -1497,16 +1478,9 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 
 	post_alloc_hook(page, order, gfp_flags);
 
-	if (IS_ENABLED(CONFIG_PAGE_SANITIZE_VERIFY)) {
-		for (i = 0; i < (1 << order); i++)
-			verify_zero_highpage(page + i);
-	}
-
-	if (!IS_ENABLED(CONFIG_PAGE_SANITIZE) &&
-		!free_pages_prezeroed() && (gfp_flags & __GFP_ZERO)) {
+	if (!free_pages_prezeroed() && (gfp_flags & __GFP_ZERO))
 		for (i = 0; i < (1 << order); i++)
 			clear_highpage(page + i);
-	}
 
 	if (order && (gfp_flags & __GFP_COMP))
 		prep_compound_page(page, order);
@@ -1681,8 +1655,7 @@ static void change_pageblock_range(struct page *pageblock_page,
  * is worse than movable allocations stealing from unmovable and reclaimable
  * pageblocks.
  */
-static bool can_steal_fallback(unsigned int current_order, unsigned int start_order,
-			       int start_mt, int fallback_mt)
+static bool can_steal_fallback(unsigned int order, int start_mt)
 {
 	/*
 	 * Leaving this order check is intended, although there is
@@ -1691,17 +1664,12 @@ static bool can_steal_fallback(unsigned int current_order, unsigned int start_or
 	 * but, below check doesn't guarantee it and that is just heuristic
 	 * so could be changed anytime.
 	 */
-	if (current_order >= pageblock_order)
+	if (order >= pageblock_order)
 		return true;
 
-	/* don't let unmovable allocations cause migrations simply because of free pages */
-	if ((start_mt != MIGRATE_UNMOVABLE && current_order >= pageblock_order / 2) ||
-	        /* only steal reclaimable page blocks for unmovable allocations */
-	        (start_mt == MIGRATE_UNMOVABLE && fallback_mt != MIGRATE_MOVABLE && current_order >= pageblock_order / 2) ||
-	        /* reclaimable can steal aggressively */
+	if (order >= pageblock_order / 2 ||
 		start_mt == MIGRATE_RECLAIMABLE ||
-		/* allow unmovable allocs up to 64K without migrating blocks */
-		(start_mt == MIGRATE_UNMOVABLE && start_order >= 5) ||
+		start_mt == MIGRATE_UNMOVABLE ||
 		page_group_by_mobility_disabled)
 		return true;
 
@@ -1741,9 +1709,8 @@ static void steal_suitable_fallback(struct zone *zone, struct page *page,
  * we can steal other freepages all together. This would help to reduce
  * fragmentation due to mixed migratetype pages in one pageblock.
  */
-int find_suitable_fallback(struct free_area *area, unsigned int current_order,
-			   int migratetype, bool only_stealable,
-			   int start_order, bool *can_steal)
+int find_suitable_fallback(struct free_area *area, unsigned int order,
+			int migratetype, bool only_stealable, bool *can_steal)
 {
 	int i;
 	int fallback_mt;
@@ -1760,7 +1727,7 @@ int find_suitable_fallback(struct free_area *area, unsigned int current_order,
 		if (list_empty(&area->free_list[fallback_mt]))
 			continue;
 
-		if (can_steal_fallback(current_order, start_order, migratetype, fallback_mt))
+		if (can_steal_fallback(order, migratetype))
 			*can_steal = true;
 
 		if (!only_stealable)
@@ -1896,7 +1863,7 @@ __rmqueue_fallback(struct zone *zone, unsigned int order, int start_migratetype)
 				--current_order) {
 		area = &(zone->free_area[current_order]);
 		fallback_mt = find_suitable_fallback(area, current_order,
-				start_migratetype, false, order, &can_steal);
+				start_migratetype, false, &can_steal);
 		if (fallback_mt == -1)
 			continue;
 
@@ -3302,21 +3269,6 @@ retry:
 	 */
 	if (!is_thp_gfp_mask(gfp_mask) || (current->flags & PF_KTHREAD))
 		migration_mode = MIGRATE_SYNC_LIGHT;
-
-#ifdef CONFIG_ANDROID_SIMPLE_LMK
-	if (gfp_mask & __GFP_NORETRY) {
-		simple_lmk_mem_reclaim();
-		goto noretry;
-	}
-
-	while (1) {
-		simple_lmk_mem_reclaim();
-		page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
-		if (page)
-			goto got_pg;
-		cond_resched();
-	}
-#endif
 
 	/* Try direct reclaim and then allocating */
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,

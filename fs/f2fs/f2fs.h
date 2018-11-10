@@ -195,12 +195,12 @@ static inline bool wq_has_sleeper(wait_queue_head_t *wq)
 	smp_mb();
 	return waitqueue_active(wq);
 }
-/*
-static inline void inode_nohighmem(struct inode *inode)
+
+/**static inline void inode_nohighmem(struct inode *inode)
 {
 	mapping_set_gfp_mask(inode->i_mapping, GFP_USER);
-}
-*/
+}**/
+
 /**
  * current_time - Return FS time
  * @inode: inode.
@@ -217,8 +217,8 @@ static inline struct timespec current_time(struct inode *inode)
 
 	if (unlikely(!inode->i_sb)) {
 		WARN(1, "current_time() called with uninitialized super_block in the inode");
-		return now; 
-	}    
+		return now;
+	}
 
 	return timespec_trunc(now, inode->i_sb->s_time_gran);
 }
@@ -1339,8 +1339,6 @@ struct f2fs_sb_info {
 
 	/* Precomputed FS UUID checksum for seeding other checksums */
 	__u32 s_chksum_seed;
-
-	struct list_head list;
 };
 
 #ifdef CONFIG_F2FS_FAULT_INJECTION
@@ -2659,6 +2657,26 @@ static inline void *f2fs_kmalloc(struct f2fs_sb_info *sbi,
 	return kmalloc(size, flags);
 }
 
+static inline void *kvmalloc(size_t size, gfp_t flags)
+{
+	void *ret;
+
+	ret = kmalloc(size, flags | __GFP_NOWARN);
+	if (!ret)
+		ret = __vmalloc(size, flags, PAGE_KERNEL);
+	return ret;
+}
+
+static inline void *kvzalloc(size_t size, gfp_t flags)
+{
+	void *ret;
+
+	ret = kzalloc(size, flags | __GFP_NOWARN);
+	if (!ret)
+		ret = __vmalloc(size, flags | __GFP_ZERO, PAGE_KERNEL);
+	return ret;
+}
+
 static inline void *f2fs_kzalloc(struct f2fs_sb_info *sbi,
 					size_t size, gfp_t flags)
 {
@@ -2676,13 +2694,12 @@ static inline void *f2fs_kvmalloc(struct f2fs_sb_info *sbi,
 #endif
 	return kvmalloc(size, flags);
 }
+
 static inline void *f2fs_kvzalloc(struct f2fs_sb_info *sbi,
 					size_t size, gfp_t flags)
 {
 	return f2fs_kvmalloc(sbi, size, flags | __GFP_ZERO);
 }
-
-
 
 static inline int get_extra_isize(struct inode *inode)
 {
@@ -3044,11 +3061,6 @@ void f2fs_clear_radix_tree_dirty_tag(struct page *page);
  */
 int f2fs_start_gc_thread(struct f2fs_sb_info *sbi);
 void f2fs_stop_gc_thread(struct f2fs_sb_info *sbi);
-void f2fs_start_all_gc_threads(void);
-void f2fs_stop_all_gc_threads(void);
-void f2fs_sbi_list_add(struct f2fs_sb_info *sbi);
-void f2fs_sbi_list_del(struct f2fs_sb_info *sbi);
-
 block_t f2fs_start_bidx_of_node(unsigned int node_ofs, struct inode *inode);
 int f2fs_gc(struct f2fs_sb_info *sbi, bool sync, bool background,
 			unsigned int segno);
@@ -3443,3 +3455,4 @@ static inline bool f2fs_force_buffered_io(struct inode *inode, int rw)
 }
 
 #endif
+
